@@ -33,19 +33,16 @@ func main() {
 	}
 	var prompt string
 	var historyQuery string
-	var historyRequested bool
 	var silent bool
 
-	flag.StringVar(&prompt, "prompt", "", "Prompt to run")
-	flag.StringVar(&prompt, "p", "", "Prompt to run (shorthand)")
+	flag.StringVar(&prompt, "p", "", "Prompt to run")
 	flag.StringVar(&historyQuery, "h", "", "Search prompt history")
-	flag.StringVar(&historyQuery, "history", "", "Search prompt history")
-	flag.BoolVar(&historyRequested, "history-all", false, "List all prompt history")
-	flag.BoolVar(&silent, "silent", false, "Less verbose, skip printing the command explanation")
-	flag.BoolVar(&silent, "s", false, "Less verbose, skip printing the command explanation (shorthand)")
-	if err := flag.CommandLine.Parse(normalizeHistoryArgs(os.Args[1:])); err != nil {
+	flag.BoolVar(&silent, "s", false, "Skip explanation generation")
+	normalizedArgs, historyFlagUsed := normalizeArgs(os.Args[1:])
+	if err := flag.CommandLine.Parse(normalizedArgs); err != nil {
 		os.Exit(2)
 	}
+	historyRequested := historyFlagUsed && strings.TrimSpace(historyQuery) == ""
 
 	// 如果命令行参数中没有指定prompt，从剩余参数中获取
 	if prompt == "" {
@@ -472,23 +469,43 @@ func promptFromHistory(query string, historyStore *history.Store, localizer *i18
 	return selectedPromptByOption[selectedOption], true, false
 }
 
-func normalizeHistoryArgs(args []string) []string {
-	normalized := make([]string, 0, len(args))
+func normalizeArgs(args []string) ([]string, bool) {
+	normalized := make([]string, 0, len(args)+2)
+	historyFlagUsed := false
+
 	for index := 0; index < len(args); index++ {
 		arg := args[index]
-		if isBareHistoryFlag(arg) && (index == len(args)-1 || strings.HasPrefix(args[index+1], "-")) {
-			normalized = append(normalized, "-history-all")
+
+		switch arg {
+		case "-hs", "-sh":
+			normalized = append(normalized, "-s")
+			historyFlagUsed = true
+			if index == len(args)-1 || strings.HasPrefix(args[index+1], "-") {
+				normalized = append(normalized, "-h=")
+			} else {
+				normalized = append(normalized, "-h")
+			}
 			continue
+		case "-ps", "-sp":
+			// -p 需要后续参数，这里把 -s 提前展开，避免被当成 -p 的值
+			normalized = append(normalized, "-s", "-p")
+			continue
+		case "-h":
+			historyFlagUsed = true
+			if index == len(args)-1 || strings.HasPrefix(args[index+1], "-") {
+				normalized = append(normalized, "-h=")
+				continue
+			}
+		}
+
+		if strings.HasPrefix(arg, "-h=") {
+			historyFlagUsed = true
 		}
 
 		normalized = append(normalized, arg)
 	}
 
-	return normalized
-}
-
-func isBareHistoryFlag(arg string) bool {
-	return arg == "-h" || arg == "-history" || arg == "--history"
+	return normalized, historyFlagUsed
 }
 
 func formatHistoryOption(entry history.Entry) string {

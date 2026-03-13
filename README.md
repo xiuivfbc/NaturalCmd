@@ -14,6 +14,9 @@
 - 支持多语言输出（中文/英文）
 - 支持不同的 AI 模型提供商（OpenAI、阿里云）
 
+## 示例
+亲测有效：![alt text](image.png)
+
 ## 安装
 
 ### 前提条件
@@ -71,8 +74,18 @@ set API_KEY=your-api-key
 # 带参数运行
 ./ai "列出当前目录中的所有文件"
 
-# 使用 prompt 标志
-./ai --prompt "查找所有 .go 文件"
+# 使用 p 标志
+./ai -p "查找所有 .go 文件"
+
+# 按关键词搜索历史记录
+./ai -h "git push"
+
+# 查看全部历史记录（不带值）
+./ai -h
+
+# 组合短参数示例
+./ai -hs
+./ai -ps "查找所有 .go 文件"
 
 # 交互式模式（不带参数）
 ./ai
@@ -80,8 +93,9 @@ set API_KEY=your-api-key
 
 ### 标志
 
-- `-prompt`, `-p`: 直接指定提示
-- `-silent`, `-s`: 跳过打印命令解释
+- `-p`: 直接指定提示
+- `-h`: 按关键词搜索历史记录；当不带值时等价于查看全部历史
+- `-s`: 不生成命令解释
 
 ## 配置
 
@@ -112,81 +126,3 @@ set API_KEY=your-api-key
    - 如果 `action` 为 `request_info`，获取请求的信息并返回给 AI
    - 如果 `action` 为 `display`，直接显示信息给用户或返回给 AI
 6. **循环处理**：如果执行失败或需要更多信息，自动重新生成脚本
-
-## 示例
-
-### 使用阿里云（默认）
-
-```bash
-$ ./ai "列出当前目录中的所有文件"
-正在生成脚本...
-
-生成的脚本：ls -la
-
-正在生成解释...
-
-解释：
-- 列出当前目录中的所有文件和目录
-- 包括隐藏文件（以 . 开头的文件）
-- 显示详细信息，包括权限、所有者、大小和修改时间
-
-? 你想要执行这个脚本吗？(要得/不得行) 要得
-
-正在执行命令...
-Running: ls -la
-total 32
-drwxr-xr-x  5 user  group  160 Mar 11 12:00 .
-drwxr-xr-x  3 user  group   96 Mar 11 11:50 ..
--rwxr-xr-x  1 user  group 8944 Mar 11 12:00 ai
--rw-r--r--  1 user  group  116 Mar 11 11:50 go.mod
-drwxr-xr-x  3 user  group   96 Mar 11 11:50 internal
-```
-
-### 使用 OpenAI
-
-```bash
-$ export API_KEY=your-openai-api-key
-$ export API_ENDPOINT=https://api.openai.com/v1/chat/completions
-$ export MODEL=gpt-4o-mini
-$ export PROVIDER=openai
-$ ./ai "列出当前目录中的所有文件"
-正在生成脚本...
-
-生成的脚本：ls -la
-
-正在生成解释...
-
-解释：
-- 列出当前目录中的所有文件和目录
-- 包括隐藏文件（以 . 开头的文件）
-- 显示详细信息，包括权限、所有者、大小和修改时间
-
-? 你想要执行这个脚本吗？(要得/不得行) 要得
-
-正在执行命令...
-Running: ls -la
-total 32
-drwxr-xr-x  5 user  group  160 Mar 11 12:00 .
-drwxr-xr-x  3 user  group   96 Mar 11 11:50 ..
--rwxr-xr-x  1 user  group 8944 Mar 11 12:00 ai
--rw-r--r--  1 user  group  116 Mar 11 11:50 go.mod
-drwxr-xr-x  3 user  group   96 Mar 11 11:50 internal
-```
-
-## 常见问题
-
-### 命令执行失败怎么办？
-
-如果命令执行失败，工具会自动将错误信息添加到提示中，让 AI 重新生成脚本。
-
-### 如何切换语言？
-
-可以通过设置 `LANGUAGE` 环境变量来切换语言，支持 `zh`（中文）和 `en`（英文）。
-
-### 如何使用其他 AI 模型？
-
-可以通过设置 `MODEL` 环境变量来使用其他 AI 模型，同时需要设置相应的 `API_ENDPOINT` 和 `PROVIDER`。
-
-## 贡献
-
-欢迎提交问题和拉取请求！
