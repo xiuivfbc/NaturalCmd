@@ -381,14 +381,26 @@ func promptUserForAction(localizer *i18n.Localizer) string {
 
 // 执行命令
 func executeCommand(script string, localizer *i18n.Localizer) (*executor.ExecutionResult, error) {
+	clearScreenIfSupported()
 	fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
 		MessageID: "executingCommand",
 	}))
+	fmt.Printf("Running: %s\n", script)
 	result, err := executor.ExecuteCommand(script)
 	if err != nil {
 		return result, err
 	}
 	return result, nil
+}
+
+func clearScreenIfSupported() {
+	term := strings.TrimSpace(os.Getenv("TERM"))
+	if term == "" || strings.EqualFold(term, "dumb") {
+		return
+	}
+
+	// ANSI clear screen + move cursor to top-left, similar to Ctrl+L in common terminals.
+	fmt.Print("\033[H\033[2J")
 }
 
 func printSuccessCelebration(localizer *i18n.Localizer, initialPrompt string, finalScript string) {

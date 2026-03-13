@@ -27,8 +27,6 @@ func ExecuteCommand(script string) (*ExecutionResult, error) {
 		}, err
 	}
 
-	fmt.Printf("Running: %s\n", script)
-
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
 		cmd = exec.Command("cmd.exe", "/c", script)
