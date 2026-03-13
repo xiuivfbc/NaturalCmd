@@ -1,11 +1,13 @@
 package completion
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -57,7 +59,7 @@ func GenerateScript(prompt string, cfg *config.Config) (string, error) {
 		request := AliyunRequest{
 			Model:       cfg.Model,
 			Messages:    messages,
-			Stream:      false,
+			Stream:      true,
 			Temperature: 0.7,
 			TopP:        0.95,
 		}
@@ -119,7 +121,7 @@ func GenerateExplanation(script string, cfg *config.Config) (string, error) {
 		request := AliyunRequest{
 			Model:       cfg.Model,
 			Messages:    messages,
-			Stream:      false,
+			Stream:      true,
 			Temperature: 0.7,
 			TopP:        0.95,
 		}
@@ -242,6 +244,10 @@ func callAliyun(request AliyunRequest, cfg *config.Config) (string, error) {
 		return "", fmt.Errorf("Aliyun API error: %s", string(body))
 	}
 
+	if request.Stream {
+		return streamAliyunResponse(resp.Body)
+	}
+
 	// 处理响应
 	var result string
 	body, err = io.ReadAll(resp.Body)
@@ -258,6 +264,10 @@ func callAliyun(request AliyunRequest, cfg *config.Config) (string, error) {
 		} `json:"choices"`
 	}
 
+	if content, ok := parseSSEBody(body); ok {
+		return content, nil
+	}
+
 	if err := json.Unmarshal(body, &openAIResponse); err == nil {
 		// 处理OpenAI兼容响应
 		for _, choice := range openAIResponse.Choices {
@@ -269,6 +279,108 @@ func callAliyun(request AliyunRequest, cfg *config.Config) (string, error) {
 	}
 
 	return result, nil
+}
+
+func streamAliyunResponse(reader io.Reader) (string, error) {
+	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+
+	var builder strings.Builder
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, ":") || !strings.HasPrefix(line, "data:") {
+			continue
+		}
+
+		payload := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if payload == "" || payload == "[DONE]" {
+			continue
+		}
+
+		content := extractChunkContent(payload)
+		if content == "" {
+			continue
+		}
+
+		builder.WriteString(content)
+		fmt.Print(content)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+
+	fmt.Println()
+	return builder.String(), nil
+}
+
+// parseSSEBody 解析 SSE 格式响应，提取 data 行中的 delta/content 内容。
+func parseSSEBody(body []byte) (string, bool) {
+	lines := bytes.Split(body, []byte("\n"))
+	var builder strings.Builder
+	foundSSE := false
+
+	for _, raw := range lines {
+		line := bytes.TrimSpace(raw)
+		if !bytes.HasPrefix(line, []byte("data:")) {
+			continue
+		}
+
+		foundSSE = true
+		payload := strings.TrimSpace(string(bytes.TrimPrefix(line, []byte("data:"))))
+		if payload == "" || payload == "[DONE]" {
+			continue
+		}
+
+		content := extractChunkContent(payload)
+		if content == "" {
+			continue
+		}
+		builder.WriteString(content)
+	}
+
+	if !foundSSE {
+		return "", false
+	}
+
+	return builder.String(), true
+}
+
+func extractChunkContent(payload string) string {
+	var chunk struct {
+		Choices []struct {
+			Delta struct {
+				Content string `json:"content"`
+			} `json:"delta"`
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+		Output struct {
+			Text string `json:"text"`
+		} `json:"output"`
+	}
+
+	if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
+		return ""
+	}
+
+	var builder strings.Builder
+	for _, choice := range chunk.Choices {
+		if choice.Delta.Content != "" {
+			builder.WriteString(choice.Delta.Content)
+			continue
+		}
+		if choice.Message.Content != "" {
+			builder.WriteString(choice.Message.Content)
+		}
+	}
+
+	if builder.Len() > 0 {
+		return builder.String()
+	}
+
+	return chunk.Output.Text
 }
 
 // buildFullPrompt 构建完整的提示
