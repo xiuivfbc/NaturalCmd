@@ -125,7 +125,7 @@
   },
   "enterPrompt": {
     "description": "主输入提示",
-    "other": "你想让我做什么？\n>"
+    "other": "你想让我做什么？（如果查询历史请直接输入 -h \"查询词\"）\n>"
   },
   "enterAdditionalInfo": {
     "description": "请输入补充信息",

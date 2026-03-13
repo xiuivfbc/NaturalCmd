@@ -93,7 +93,10 @@ func main() {
 	for {
 		// 获取用户输入（如果没有指定prompt）
 		if prompt == "" {
-			prompt = getUserPrompt(localizer)
+			prompt = getUserPrompt(localizer, historyStore)
+			if prompt == "" {
+				continue
+			}
 		}
 
 		initialPrompt := strings.TrimSpace(prompt)
@@ -223,7 +226,7 @@ func checkAPIKey(cfg *config.Config, localizer *i18n.Localizer) bool {
 }
 
 // 获取用户输入的prompt
-func getUserPrompt(localizer *i18n.Localizer) string {
+func getUserPrompt(localizer *i18n.Localizer, historyStore *history.Store) string {
 	prompt := ""
 	for prompt == "" {
 		value, err := ui.GetPrompt(localizer)
@@ -243,9 +246,38 @@ func getUserPrompt(localizer *i18n.Localizer) string {
 			}))
 			continue
 		}
+
+		if historyStore != nil {
+			if query, ok := parseInlineHistoryQuery(value); ok {
+				resolvedPrompt, selectedFromHistory, shouldExit := promptFromHistory(query, historyStore, localizer)
+				if shouldExit {
+					continue
+				}
+				if selectedFromHistory {
+					prompt = resolvedPrompt
+				}
+				continue
+			}
+		}
+
 		prompt = value
 	}
 	return prompt
+}
+
+func parseInlineHistoryQuery(input string) (string, bool) {
+	value := strings.TrimSpace(input)
+	if value == "-h" {
+		return "", true
+	}
+
+	if strings.HasPrefix(value, "-h ") {
+		query := strings.TrimSpace(strings.TrimPrefix(value, "-h "))
+		query = strings.Trim(query, "\"'")
+		return query, true
+	}
+
+	return "", false
 }
 
 // 生成脚本和解释
