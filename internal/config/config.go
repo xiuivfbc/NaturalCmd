@@ -8,27 +8,35 @@ import (
 
 // Config 定义配置结构
 type Config struct {
-	APIKey      string
-	APIEndpoint string
-	Model       string
-	Language    string
-	SilentMode  bool
-	Provider    string // 模型提供商: openai, aliyun
-	HistoryFile string
-	HistoryMax  int
+	APIKey            string
+	APIEndpoint       string
+	Model             string
+	Language          string
+	SilentMode        bool
+	Provider          string // 模型提供商: openai, aliyun
+	HistoryFile       string
+	HistoryMax        int
+	RAGEnabled        bool
+	RAGTopK           int
+	RAGFeedbackFile   string
+	RAGSemanticExpand bool
 }
 
 // Load 加载配置
 func Load() (*Config, error) {
 	return &Config{
-		APIKey:      getEnv("API_KEY", getEnv("OPENAI_KEY", "")),
-		APIEndpoint: getEnv("API_ENDPOINT", getEnv("API_ENDPOINT", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")),
-		Model:       getEnv("MODEL", "gpt-4o-mini"),
-		Language:    getEnv("LANGUAGE", "en"),
-		SilentMode:  getEnv("SILENT_MODE", "false") == "true",
-		Provider:    getEnv("PROVIDER", "openai"),
-		HistoryFile: getEnv("HISTORY_FILE", ""),
-		HistoryMax:  getEnvAsInt("HISTORY_MAX_CAPACITY", 50),
+		APIKey:            getEnv("API_KEY", getEnv("OPENAI_KEY", "")),
+		APIEndpoint:       getEnv("API_ENDPOINT", getEnv("API_ENDPOINT", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")),
+		Model:             getEnv("MODEL", "gpt-4o-mini"),
+		Language:          getEnv("LANGUAGE", "en"),
+		SilentMode:        getEnv("SILENT_MODE", "false") == "true",
+		Provider:          getEnv("PROVIDER", "openai"),
+		HistoryFile:       getEnv("HISTORY_FILE", ""),
+		HistoryMax:        getEnvAsInt("HISTORY_MAX_CAPACITY", 50),
+		RAGEnabled:        getEnvAsBool("RAG_ENABLED", true),
+		RAGTopK:           getEnvAsInt("RAG_TOP_K", 3),
+		RAGFeedbackFile:   getEnv("RAG_FEEDBACK_FILE", ""),
+		RAGSemanticExpand: getEnvAsBool("RAG_SEMANTIC_EXPAND", true),
 	}, nil
 }
 
@@ -52,4 +60,20 @@ func getEnvAsInt(key string, defaultValue int) int {
 	}
 
 	return parsed
+}
+
+func getEnvAsBool(key string, defaultValue bool) bool {
+	value := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
+	if value == "" {
+		return defaultValue
+	}
+
+	switch value {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return defaultValue
+	}
 }

@@ -17,6 +17,7 @@ import (
 	"github/xiuivfbc/NaturalCmd/internal/config"
 	"github/xiuivfbc/NaturalCmd/internal/executor"
 	"github/xiuivfbc/NaturalCmd/internal/history"
+	"github/xiuivfbc/NaturalCmd/internal/rag"
 	"github/xiuivfbc/NaturalCmd/internal/ui"
 )
 
@@ -76,6 +77,14 @@ func main() {
 		}))
 	}
 
+	var feedbackStore *rag.FeedbackStore
+	if cfg.RAGEnabled {
+		feedbackStore, err = rag.LoadFeedback(cfg.RAGFeedbackFile)
+		if err != nil {
+			fmt.Printf("Warning: failed to load rag feedback store: %v\n", err)
+		}
+	}
+
 	// 历史记录查询和选择
 	if historyStore != nil && (historyRequested || historyQuery != "") {
 		resolvedPrompt, selectedFromHistory, shouldExit := promptFromHistory(historyQuery, historyStore, localizer)
@@ -104,7 +113,7 @@ func main() {
 
 		for {
 			// 生成脚本和解释
-			script, err := generateScriptAndExplanation(prompt+executionFeedback, cfg, localizer, silent)
+			script, err := generateScriptAndExplanation(prompt, executionFeedback, cfg, localizer, historyStore, feedbackStore, silent)
 			if err != nil {
 				os.Exit(1)
 			}
@@ -119,6 +128,9 @@ func main() {
 				// 执行命令
 				result, err := executeCommand(script, localizer)
 				if err != nil {
+					if feedbackStore != nil {
+						_ = feedbackStore.RecordFailure(script)
+					}
 					fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
 						MessageID: "errorExecutingCommand",
 						TemplateData: map[string]interface{}{
@@ -140,6 +152,9 @@ func main() {
 							},
 						}))
 					}
+				}
+				if feedbackStore != nil {
+					_ = feedbackStore.RecordSuccess(script)
 				}
 				printSuccessCelebration(localizer, initialPrompt, script)
 				prompt = ""
@@ -281,12 +296,30 @@ func parseInlineHistoryQuery(input string) (string, bool) {
 }
 
 // 生成脚本和解释
-func generateScriptAndExplanation(prompt string, cfg *config.Config, localizer *i18n.Localizer, silent bool) (string, error) {
+func generateScriptAndExplanation(prompt string, executionFeedback string, cfg *config.Config, localizer *i18n.Localizer, historyStore *history.Store, feedbackStore *rag.FeedbackStore, silent bool) (string, error) {
+	promptForModel := strings.TrimSpace(prompt)
+	if cfg.RAGEnabled {
+		ragContext := rag.BuildHistoryContextWithFeedback(prompt, historyStore, feedbackStore, cfg.RAGTopK)
+		if ragContext == "" && cfg.RAGSemanticExpand {
+			expandedTerms, err := completion.GenerateQueryExpansion(prompt, cfg)
+			if err == nil && strings.TrimSpace(expandedTerms) != "" {
+				ragContext = rag.BuildHistoryContextWithFeedback(prompt+" "+expandedTerms, historyStore, feedbackStore, cfg.RAGTopK)
+			}
+		}
+		if ragContext != "" {
+			promptForModel += "\n\n" + ragContext
+		}
+	}
+
+	if strings.TrimSpace(executionFeedback) != "" {
+		promptForModel += executionFeedback
+	}
+
 	// 生成命令
 	fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
 		MessageID: "generatingScript",
 	}))
-	script, err := completion.GenerateScript(prompt, cfg)
+	script, err := completion.GenerateScript(promptForModel, cfg)
 	if err != nil {
 		fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: "errorGeneratingScript",

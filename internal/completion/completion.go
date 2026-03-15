@@ -138,6 +138,45 @@ func GenerateExplanation(script string, cfg *config.Config) (string, error) {
 	return result, err
 }
 
+// GenerateQueryExpansion 生成用于检索增强的语义扩展词（逗号分隔）。
+func GenerateQueryExpansion(query string, cfg *config.Config) (string, error) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return "", nil
+	}
+
+	prompt := fmt.Sprintf("Expand this user intent into concise retrieval keywords for command-line tasks. Return one single line as comma-separated keywords only, no explanation, no markdown: %s", query)
+	messages := []Message{{Role: "user", Content: prompt}}
+
+	var result string
+	var err error
+
+	switch cfg.Provider {
+	case "aliyun":
+		request := AliyunRequest{
+			Model:       cfg.Model,
+			Messages:    messages,
+			Stream:      false,
+			Temperature: 0.2,
+			TopP:        0.8,
+		}
+		result, err = callAliyun(request, cfg)
+	default:
+		request := OpenAIRequest{
+			Model:    cfg.Model,
+			Messages: messages,
+			Stream:   false,
+		}
+		result, err = callOpenAI(request, cfg)
+	}
+
+	if err != nil {
+		return "", err
+	}
+
+	return normalizeExpansionTerms(result), nil
+}
+
 // callOpenAI 调用OpenAI API
 func callOpenAI(request OpenAIRequest, cfg *config.Config) (string, error) {
 	body, err := json.Marshal(request)
@@ -163,6 +202,31 @@ func callOpenAI(request OpenAIRequest, cfg *config.Config) (string, error) {
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return "", fmt.Errorf("OpenAI API error: %s", string(body))
+	}
+
+	if !request.Stream {
+		data, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return "", err
+		}
+
+		var response struct {
+			Choices []struct {
+				Message struct {
+					Content string `json:"content"`
+				} `json:"message"`
+			} `json:"choices"`
+		}
+		if err := json.Unmarshal(data, &response); err != nil {
+			return "", err
+		}
+
+		var builder strings.Builder
+		for _, choice := range response.Choices {
+			builder.WriteString(choice.Message.Content)
+		}
+
+		return builder.String(), nil
 	}
 
 	// 处理流式响应
@@ -381,6 +445,35 @@ func extractChunkContent(payload string) string {
 	}
 
 	return chunk.Output.Text
+}
+
+func normalizeExpansionTerms(raw string) string {
+	raw = strings.TrimSpace(raw)
+	raw = strings.Trim(raw, "`")
+	raw = strings.ReplaceAll(raw, "\n", ",")
+	raw = strings.ReplaceAll(raw, "；", ",")
+	raw = strings.ReplaceAll(raw, ";", ",")
+
+	parts := strings.Split(raw, ",")
+	seen := make(map[string]struct{})
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		term := strings.TrimSpace(strings.Trim(part, "\"'"))
+		if len(term) <= 1 {
+			continue
+		}
+		key := strings.ToLower(term)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, term)
+		if len(result) >= 8 {
+			break
+		}
+	}
+
+	return strings.Join(result, ", ")
 }
 
 // buildFullPrompt 构建完整的提示

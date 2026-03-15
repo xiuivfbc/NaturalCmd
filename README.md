@@ -32,7 +32,7 @@ go build -o ai ./cmd/ai
 
 ## 使用
 
-### 设置 API 密钥h
+### 设置 API 密钥
 
 #### 使用 .env 文件（推荐）
 
@@ -56,6 +56,18 @@ LANGUAGE=zh
 
 # 启用静默模式
 SILENT_MODE=false
+
+# 启用轻量 RAG（基于历史命令检索增强）
+RAG_ENABLED=true
+
+# RAG 检索条数
+RAG_TOP_K=3
+
+# RAG 反馈权重文件路径（可选）
+RAG_FEEDBACK_FILE=
+
+# 开启模型语义扩展（本地检索未命中时触发）
+RAG_SEMANTIC_EXPAND=true
 ```
 
 #### 使用环境变量
@@ -109,20 +121,16 @@ set API_KEY=your-api-key
 | `PROVIDER` | 模型提供商（`openai` 或 `aliyun`） | `aliyun` |
 | `LANGUAGE` | 解释的语言 | `zh` |
 | `SILENT_MODE` | 启用静默模式 | `false` |
+| `RAG_ENABLED` | 是否启用基于历史记录的 RAG 增强 | `true` |
+| `RAG_TOP_K` | RAG 检索返回的历史条数 | `3` |
+| `RAG_FEEDBACK_FILE` | RAG 成功/失败反馈权重文件路径（为空则使用默认路径） | `` |
+| `RAG_SEMANTIC_EXPAND` | 本地检索未命中时是否调用模型做语义扩展 | `true` |
 
 ## 工作原理
 
 1. **用户输入**：用户输入自然语言描述的任务
 2. **环境感知**：工具获取当前目录的文件和目录状态
 3. **AI 处理**：将用户输入和环境信息发送给 AI 模型
-4. **响应解析**：解析 AI 模型返回的 JSON 响应，包含以下字段：
-   - `object`：目标对象（`system` 或 `user`）
-   - `action`：操作类型（`execute`、`request_info`、`display`）
-   - `content`：命令内容或显示信息
-   - `info_needed`：请求的信息类型（当 action 为 `request_info` 时）
-5. **执行操作**：
-   - 如果 `object` 为 `system`，自动执行命令并将结果返回给 AI
-   - 如果 `object` 为 `user`，让用户选择是否执行命令
-   - 如果 `action` 为 `request_info`，获取请求的信息并返回给 AI
-   - 如果 `action` 为 `display`，直接显示信息给用户或返回给 AI
-6. **循环处理**：如果执行失败或需要更多信息，自动重新生成脚本
+4. **响应解析**：解析聊天补全响应（支持流式 SSE），实时拼接 `choices[].delta.content`（兼容 `message.content` / `output.text`），并提取最终单行命令。
+5. **交互执行**：展示生成命令，用户可选择执行、继续调整（补充信息后重生成）或取消。
+6. **失败闭环**：若命令执行失败，自动将错误信息、退出码和输出回灌给模型，重新生成更可靠的命令。
