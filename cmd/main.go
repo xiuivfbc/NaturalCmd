@@ -275,6 +275,11 @@ func getUserPrompt(localizer *i18n.Localizer, historyStore *history.Store) strin
 			}
 		}
 
+		if strings.TrimSpace(value) == "" {
+			clearScreenIfSupported()
+			continue
+		}
+
 		prompt = value
 	}
 	return prompt
@@ -315,10 +320,7 @@ func generateScriptAndExplanation(prompt string, executionFeedback string, cfg *
 		promptForModel += executionFeedback
 	}
 
-	// 生成命令
-	fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
-		MessageID: "generatingScript",
-	}))
+	// 生成命令（流式输出在 completion 层处理）
 	script, err := completion.GenerateScript(promptForModel, cfg)
 	if err != nil {
 		fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
@@ -339,10 +341,10 @@ func generateScriptAndExplanation(prompt string, executionFeedback string, cfg *
 
 	// 生成解释（如果非静默模式）
 	if !silent && !cfg.SilentMode {
-		fmt.Println("\n" + localizer.MustLocalize(&i18n.LocalizeConfig{
-			MessageID: "generatingExplanation",
+		fmt.Printf("\n%s\n", localizer.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: "explanation",
 		}))
-		explanation, err := completion.GenerateExplanation(script, cfg)
+		_, err := completion.GenerateExplanation(script, cfg)
 		if err != nil {
 			fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
 				MessageID: "errorGeneratingExplanation",
@@ -350,10 +352,6 @@ func generateScriptAndExplanation(prompt string, executionFeedback string, cfg *
 					"Error": err,
 				},
 			}))
-		} else {
-			fmt.Printf("\n%s\n%s\n\n", localizer.MustLocalize(&i18n.LocalizeConfig{
-				MessageID: "explanation",
-			}), explanation)
 		}
 	}
 

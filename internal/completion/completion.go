@@ -59,7 +59,7 @@ func GenerateScript(prompt string, cfg *config.Config) (string, error) {
 		request := AliyunRequest{
 			Model:       cfg.Model,
 			Messages:    messages,
-			Stream:      true,
+			Stream:      false,
 			Temperature: 0.7,
 			TopP:        0.95,
 		}
@@ -68,7 +68,7 @@ func GenerateScript(prompt string, cfg *config.Config) (string, error) {
 		request := OpenAIRequest{
 			Model:    cfg.Model,
 			Messages: messages,
-			Stream:   true,
+			Stream:   false,
 		}
 		result, err = callOpenAI(request, cfg)
 	}

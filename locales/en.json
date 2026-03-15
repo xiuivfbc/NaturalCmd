@@ -125,7 +125,7 @@
   },
   "enterPrompt": {
     "description": "Prompt for main user request",
-    "other": "What would you like me to do? (For history search, enter -h \"query\")\n>"
+    "other": "What would you like me to do? (For history search, enter -h \"query\"; press Enter to clear screen)\n>"
   },
   "enterAdditionalInfo": {
     "description": "Prompt for additional information",
