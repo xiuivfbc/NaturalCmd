@@ -1,6 +1,7 @@
 package rag
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -95,5 +96,27 @@ func TestBuildHistoryContextChineseWithoutWhitespace(t *testing.T) {
 	ctx := BuildHistoryContext("远程仓库", store, 1)
 	if !strings.Contains(ctx, "git remote -v") {
 		t.Fatalf("expected chinese no-whitespace query to match remote command, got: %s", ctx)
+	}
+}
+
+func TestBuildHistoryContextFallbackForLegacyEntriesWithoutTokens(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "history.json")
+	legacy := `[
+		{"prompt":"查看远程仓库","script":"git remote -v","updated_at":"2026-01-01T00:00:00Z"},
+		{"prompt":"查看本地分支","script":"git branch","updated_at":"2026-01-01T00:00:01Z"}
+	]`
+
+	if err := os.WriteFile(path, []byte(legacy), 0o600); err != nil {
+		t.Fatalf("write legacy history: %v", err)
+	}
+
+	store, err := history.Load(path, 10)
+	if err != nil {
+		t.Fatalf("load history store: %v", err)
+	}
+
+	ctx := BuildHistoryContext("远程仓库", store, 1)
+	if !strings.Contains(ctx, "git remote -v") {
+		t.Fatalf("expected legacy entries without tokens to still match, got: %s", ctx)
 	}
 }

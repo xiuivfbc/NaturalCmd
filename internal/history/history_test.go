@@ -64,3 +64,32 @@ func TestStoreSearchMatchesPromptAndScript(t *testing.T) {
 		t.Fatalf("expected all entries when query is empty, got %d", len(all))
 	}
 }
+
+func TestStoreAddPersistsSearchTokens(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "history.json")
+	store, err := Load(path, 5)
+	if err != nil {
+		t.Fatalf("load store: %v", err)
+	}
+
+	if err := store.Add("查看远程仓库", "git remote -v"); err != nil {
+		t.Fatalf("add history: %v", err)
+	}
+
+	reloaded, err := Load(path, 5)
+	if err != nil {
+		t.Fatalf("reload store: %v", err)
+	}
+
+	entries := reloaded.Search("")
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+
+	if len(entries[0].PromptTokens) == 0 {
+		t.Fatalf("expected prompt tokens to be persisted")
+	}
+	if len(entries[0].ScriptTokens) == 0 {
+		t.Fatalf("expected script tokens to be persisted")
+	}
+}

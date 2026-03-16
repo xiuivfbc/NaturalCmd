@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"unicode"
 
 	"github/xiuivfbc/NaturalCmd/internal/history"
+	"github/xiuivfbc/NaturalCmd/internal/tokenizer"
 )
 
 const defaultTopK = 3
@@ -36,7 +36,7 @@ func BuildHistoryContextWithFeedback(query string, store *history.Store, feedbac
 		topK = defaultTopK
 	}
 
-	queryTokens := tokenize(query)
+	queryTokens := sliceToTokenSet(tokenizer.TokenizeForSearch(query))
 	if len(queryTokens) == 0 {
 		return ""
 	}
@@ -84,8 +84,15 @@ func BuildHistoryContextWithFeedback(query string, store *history.Store, feedbac
 }
 
 func scoreEntry(queryTokens map[string]struct{}, entry history.Entry, feedback *FeedbackStore) int {
-	promptTokens := tokenize(strings.TrimSpace(entry.Prompt))
-	scriptTokens := tokenize(strings.TrimSpace(entry.Script))
+	promptTokens := sliceToTokenSet(entry.PromptTokens)
+	if len(promptTokens) == 0 {
+		promptTokens = sliceToTokenSet(tokenizer.TokenizeForSearch(strings.TrimSpace(entry.Prompt)))
+	}
+
+	scriptTokens := sliceToTokenSet(entry.ScriptTokens)
+	if len(scriptTokens) == 0 {
+		scriptTokens = sliceToTokenSet(tokenizer.TokenizeForSearch(strings.TrimSpace(entry.Script)))
+	}
 
 	score := 0
 	for token := range queryTokens {
@@ -104,55 +111,23 @@ func scoreEntry(queryTokens map[string]struct{}, entry history.Entry, feedback *
 	return score
 }
 
-func tokenize(text string) map[string]struct{} {
-	tokens := make(map[string]struct{})
-	text = strings.ToLower(strings.TrimSpace(text))
-
-	var latinBuilder strings.Builder
-	hanRunes := make([]rune, 0, len(text))
-
-	flushLatin := func() {
-		if latinBuilder.Len() == 0 {
-			return
-		}
-		token := strings.TrimSpace(latinBuilder.String())
-		if len(token) > 1 {
-			tokens[token] = struct{}{}
-		}
-		latinBuilder.Reset()
+func sliceToTokenSet(tokens []string) map[string]struct{} {
+	if len(tokens) == 0 {
+		return nil
 	}
 
-	flushHan := func() {
-		if len(hanRunes) == 0 {
-			return
+	set := make(map[string]struct{}, len(tokens))
+	for _, token := range tokens {
+		value := strings.TrimSpace(strings.ToLower(token))
+		if value == "" {
+			continue
 		}
-		if len(hanRunes) >= 2 {
-			// 连续中文片段作为一个整体 token
-			tokens[string(hanRunes)] = struct{}{}
-			// 同时生成双字 token，提升短句匹配能力
-			for i := 0; i < len(hanRunes)-1; i++ {
-				tokens[string(hanRunes[i:i+2])] = struct{}{}
-			}
-		}
-		hanRunes = hanRunes[:0]
+		set[value] = struct{}{}
 	}
 
-	for _, r := range text {
-		switch {
-		case unicode.Is(unicode.Han, r):
-			flushLatin()
-			hanRunes = append(hanRunes, r)
-		case unicode.IsLetter(r) || unicode.IsDigit(r) || r == '-' || r == '_':
-			flushHan()
-			latinBuilder.WriteRune(r)
-		default:
-			flushLatin()
-			flushHan()
-		}
+	if len(set) == 0 {
+		return nil
 	}
 
-	flushLatin()
-	flushHan()
-
-	return tokens
+	return set
 }

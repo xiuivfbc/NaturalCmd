@@ -7,15 +7,19 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github/xiuivfbc/NaturalCmd/internal/tokenizer"
 )
 
 const defaultCapacity = 50
 
 // Entry 表示一条历史记录。
 type Entry struct {
-	Prompt    string    `json:"prompt"`
-	Script    string    `json:"script"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Prompt       string    `json:"prompt"`
+	Script       string    `json:"script"`
+	PromptTokens []string  `json:"prompt_tokens,omitempty"`
+	ScriptTokens []string  `json:"script_tokens,omitempty"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // Store 管理历史记录，并使用 LRU 规则裁剪容量。
@@ -78,9 +82,11 @@ func (s *Store) Add(prompt, script string) error {
 	}
 
 	entry := Entry{
-		Prompt:    prompt,
-		Script:    script,
-		UpdatedAt: time.Now(),
+		Prompt:       prompt,
+		Script:       script,
+		PromptTokens: tokenizer.TokenizeForSearch(prompt),
+		ScriptTokens: tokenizer.TokenizeForSearch(script),
+		UpdatedAt:    time.Now(),
 	}
 
 	entries := make([]Entry, 0, len(s.entries)+1)
@@ -148,6 +154,8 @@ func normalizeEntries(entries []Entry, capacity int) []Entry {
 
 		entry.Prompt = prompt
 		entry.Script = strings.TrimSpace(entry.Script)
+		entry.PromptTokens = normalizeTokenSlice(entry.PromptTokens)
+		entry.ScriptTokens = normalizeTokenSlice(entry.ScriptTokens)
 		seen[key] = struct{}{}
 		result = append(result, entry)
 
@@ -174,4 +182,30 @@ func cloneEntries(entries []Entry) []Entry {
 	cloned := make([]Entry, len(entries))
 	copy(cloned, entries)
 	return cloned
+}
+
+func normalizeTokenSlice(tokens []string) []string {
+	if len(tokens) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(tokens))
+	normalized := make([]string, 0, len(tokens))
+	for _, token := range tokens {
+		value := strings.TrimSpace(strings.ToLower(token))
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		normalized = append(normalized, value)
+	}
+
+	if len(normalized) == 0 {
+		return nil
+	}
+
+	return normalized
 }
