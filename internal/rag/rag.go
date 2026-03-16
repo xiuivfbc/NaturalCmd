@@ -11,6 +11,13 @@ import (
 
 const defaultTopK = 3
 
+// MatchResult 表示一次历史检索的结果及其命中分值。
+type MatchResult struct {
+	Context   string
+	BestScore int
+	Coverage  float64
+}
+
 // BuildHistoryContext 从历史记录中检索与当前查询最相关的上下文，供模型生成命令时参考。
 func BuildHistoryContext(query string, store *history.Store, topK int) string {
 	return BuildHistoryContextWithFeedback(query, store, nil, topK)
@@ -18,18 +25,23 @@ func BuildHistoryContext(query string, store *history.Store, topK int) string {
 
 // BuildHistoryContextWithFeedback 在历史检索基础上叠加执行反馈权重。
 func BuildHistoryContextWithFeedback(query string, store *history.Store, feedback *FeedbackStore, topK int) string {
+	return BuildHistoryMatchWithFeedback(query, store, feedback, topK).Context
+}
+
+// BuildHistoryMatchWithFeedback 在历史检索基础上叠加执行反馈权重，并返回命中分值。
+func BuildHistoryMatchWithFeedback(query string, store *history.Store, feedback *FeedbackStore, topK int) MatchResult {
 	if store == nil {
-		return ""
+		return MatchResult{}
 	}
 
 	query = strings.TrimSpace(query)
 	if query == "" {
-		return ""
+		return MatchResult{}
 	}
 
 	entries := store.Search("")
 	if len(entries) == 0 {
-		return ""
+		return MatchResult{}
 	}
 
 	if topK <= 0 {
@@ -38,26 +50,32 @@ func BuildHistoryContextWithFeedback(query string, store *history.Store, feedbac
 
 	queryTokens := sliceToTokenSet(tokenizer.TokenizeForSearch(query))
 	if len(queryTokens) == 0 {
-		return ""
+		return MatchResult{}
 	}
+	totalQueryTokens := len(queryTokens)
 
 	type scoredEntry struct {
-		entry history.Entry
-		score int
-		idx   int
+		entry    history.Entry
+		score    int
+		coverage float64
+		idx      int
 	}
 
 	results := make([]scoredEntry, 0, len(entries))
 	for index, entry := range entries {
-		score := scoreEntry(queryTokens, entry, feedback)
+		score, matchedCount := scoreEntry(queryTokens, entry, feedback)
 		if score <= 0 {
 			continue
 		}
-		results = append(results, scoredEntry{entry: entry, score: score, idx: index})
+		coverage := 0.0
+		if totalQueryTokens > 0 {
+			coverage = float64(matchedCount) / float64(totalQueryTokens)
+		}
+		results = append(results, scoredEntry{entry: entry, score: score, coverage: coverage, idx: index})
 	}
 
 	if len(results) == 0 {
-		return ""
+		return MatchResult{}
 	}
 
 	sort.Slice(results, func(i, j int) bool {
@@ -80,10 +98,14 @@ func BuildHistoryContextWithFeedback(query string, store *history.Store, feedbac
 	}
 
 	builder.WriteString("Use these as hints when appropriate, but output a command that best matches the current request.\n")
-	return builder.String()
+	return MatchResult{
+		Context:   builder.String(),
+		BestScore: results[0].score,
+		Coverage:  results[0].coverage,
+	}
 }
 
-func scoreEntry(queryTokens map[string]struct{}, entry history.Entry, feedback *FeedbackStore) int {
+func scoreEntry(queryTokens map[string]struct{}, entry history.Entry, feedback *FeedbackStore) (int, int) {
 	promptTokens := sliceToTokenSet(entry.PromptTokens)
 	if len(promptTokens) == 0 {
 		promptTokens = sliceToTokenSet(tokenizer.TokenizeForSearch(strings.TrimSpace(entry.Prompt)))
@@ -95,12 +117,19 @@ func scoreEntry(queryTokens map[string]struct{}, entry history.Entry, feedback *
 	}
 
 	score := 0
+	matchedCount := 0
 	for token := range queryTokens {
+		matched := false
 		if _, ok := promptTokens[token]; ok {
 			score += 3
+			matched = true
 		}
 		if _, ok := scriptTokens[token]; ok {
 			score += 1
+			matched = true
+		}
+		if matched {
+			matchedCount++
 		}
 	}
 
@@ -108,7 +137,7 @@ func scoreEntry(queryTokens map[string]struct{}, entry history.Entry, feedback *
 		score += feedback.WeightForScript(entry.Script) * 2
 	}
 
-	return score
+	return score, matchedCount
 }
 
 func sliceToTokenSet(tokens []string) map[string]struct{} {

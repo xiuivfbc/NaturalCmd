@@ -304,11 +304,20 @@ func parseInlineHistoryQuery(input string) (string, bool) {
 func generateScriptAndExplanation(prompt string, executionFeedback string, cfg *config.Config, localizer *i18n.Localizer, historyStore *history.Store, feedbackStore *rag.FeedbackStore, silent bool) (string, error) {
 	promptForModel := strings.TrimSpace(prompt)
 	if cfg.RAGEnabled {
-		ragContext := rag.BuildHistoryContextWithFeedback(prompt, historyStore, feedbackStore, cfg.RAGTopK)
-		if ragContext == "" && cfg.RAGSemanticExpand {
+		match := rag.BuildHistoryMatchWithFeedback(prompt, historyStore, feedbackStore, cfg.RAGTopK)
+		ragContext := match.Context
+		localHit := match.BestScore >= cfg.RAGMinLocalHit && match.Coverage >= cfg.RAGMinLocalCover
+		if !localHit && cfg.RAGSemanticExpand {
 			expandedTerms, err := completion.GenerateQueryExpansion(prompt, cfg)
 			if err == nil && strings.TrimSpace(expandedTerms) != "" {
-				ragContext = rag.BuildHistoryContextWithFeedback(prompt+" "+expandedTerms, historyStore, feedbackStore, cfg.RAGTopK)
+				expandedMatch := rag.BuildHistoryMatchWithFeedback(prompt+" "+expandedTerms, historyStore, feedbackStore, cfg.RAGTopK)
+				if expandedMatch.BestScore >= cfg.RAGMinLocalHit && expandedMatch.Coverage >= cfg.RAGMinLocalCover {
+					ragContext = expandedMatch.Context
+				} else {
+					ragContext = ""
+				}
+			} else {
+				ragContext = ""
 			}
 		}
 		if ragContext != "" {

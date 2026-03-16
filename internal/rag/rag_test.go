@@ -120,3 +120,41 @@ func TestBuildHistoryContextFallbackForLegacyEntriesWithoutTokens(t *testing.T) 
 		t.Fatalf("expected legacy entries without tokens to still match, got: %s", ctx)
 	}
 }
+
+func TestBuildHistoryMatchWithFeedbackProvidesBestScore(t *testing.T) {
+	store, err := history.Load(filepath.Join(t.TempDir(), "history.json"), 10)
+	if err != nil {
+		t.Fatalf("load history store: %v", err)
+	}
+
+	_ = store.Add("查看 git 状态", "git status")
+	_ = store.Add("查看 docker 容器", "docker ps")
+
+	match := BuildHistoryMatchWithFeedback("git 状态", store, nil, 1)
+	if match.Context == "" {
+		t.Fatalf("expected non-empty match context")
+	}
+	if match.BestScore <= 0 {
+		t.Fatalf("expected positive best score, got %d", match.BestScore)
+	}
+	if match.Coverage <= 0 {
+		t.Fatalf("expected positive coverage, got %f", match.Coverage)
+	}
+	if !strings.Contains(match.Context, "git status") {
+		t.Fatalf("expected git status in top result, got: %s", match.Context)
+	}
+}
+
+func TestBuildHistoryContextWrapperKeepsCompatibility(t *testing.T) {
+	store, err := history.Load(filepath.Join(t.TempDir(), "history.json"), 10)
+	if err != nil {
+		t.Fatalf("load history store: %v", err)
+	}
+
+	_ = store.Add("查看远程仓库", "git remote -v")
+
+	ctx := BuildHistoryContextWithFeedback("远程仓库", store, nil, 1)
+	if ctx == "" {
+		t.Fatalf("expected context from compatibility wrapper")
+	}
+}

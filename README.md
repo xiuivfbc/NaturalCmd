@@ -63,6 +63,12 @@ RAG_ENABLED=true
 # RAG 检索条数
 RAG_TOP_K=3
 
+# 本地检索最低命中分（低于该值才触发语义扩展）
+RAG_MIN_LOCAL_HIT_SCORE=4
+
+# 本地检索最低覆盖率（0-1，低于该值才触发语义扩展）
+RAG_MIN_LOCAL_COVERAGE=0.45
+
 # RAG 反馈权重文件路径（可选）
 RAG_FEEDBACK_FILE=
 
@@ -123,6 +129,8 @@ set API_KEY=your-api-key
 | `SILENT_MODE` | 启用静默模式 | `false` |
 | `RAG_ENABLED` | 是否启用基于历史记录的 RAG 增强 | `true` |
 | `RAG_TOP_K` | RAG 检索返回的历史条数 | `3` |
+| `RAG_MIN_LOCAL_HIT_SCORE` | 本地检索最低命中分（低于该值才视为未命中） | `4` |
+| `RAG_MIN_LOCAL_COVERAGE` | 本地检索最低覆盖率（0-1） | `0.45` |
 | `RAG_FEEDBACK_FILE` | RAG 成功/失败反馈权重文件路径（为空则使用默认路径） | `` |
 | `RAG_SEMANTIC_EXPAND` | 本地检索未命中时是否调用模型做语义扩展 | `true` |
 

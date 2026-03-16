@@ -18,6 +18,8 @@ type Config struct {
 	HistoryMax        int
 	RAGEnabled        bool
 	RAGTopK           int
+	RAGMinLocalHit    int
+	RAGMinLocalCover  float64
 	RAGFeedbackFile   string
 	RAGSemanticExpand bool
 }
@@ -35,6 +37,8 @@ func Load() (*Config, error) {
 		HistoryMax:        getEnvAsInt("HISTORY_MAX_CAPACITY", 50),
 		RAGEnabled:        getEnvAsBool("RAG_ENABLED", true),
 		RAGTopK:           getEnvAsInt("RAG_TOP_K", 3),
+		RAGMinLocalHit:    getEnvAsInt("RAG_MIN_LOCAL_HIT_SCORE", 4),
+		RAGMinLocalCover:  getEnvAsFloat64("RAG_MIN_LOCAL_COVERAGE", 0.45),
 		RAGFeedbackFile:   getEnv("RAG_FEEDBACK_FILE", ""),
 		RAGSemanticExpand: getEnvAsBool("RAG_SEMANTIC_EXPAND", true),
 	}, nil
@@ -76,4 +80,25 @@ func getEnvAsBool(key string, defaultValue bool) bool {
 	default:
 		return defaultValue
 	}
+}
+
+func getEnvAsFloat64(key string, defaultValue float64) float64 {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return defaultValue
+	}
+
+	if parsed < 0 {
+		return 0
+	}
+	if parsed > 1 {
+		return 1
+	}
+
+	return parsed
 }
