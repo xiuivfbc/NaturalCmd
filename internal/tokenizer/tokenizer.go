@@ -106,6 +106,7 @@ func cutChinese(text string) []string {
 	}()
 
 	segmenterOnce.Do(func() {
+		segmenter.SkipLog = true
 		segmenter.LoadDict()
 	})
 
