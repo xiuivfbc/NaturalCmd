@@ -177,6 +177,101 @@ func GenerateQueryExpansion(query string, cfg *config.Config) (string, error) {
 	return normalizeExpansionTerms(result), nil
 }
 
+// SkillSelection 表示模型挑选技能后的结果。
+type SkillSelection struct {
+	SelectedSkills []string
+	Strategy       string
+}
+
+// GenerateSkillSelection 让模型根据用户输入和技能目录自主选择可用技能。
+func GenerateSkillSelection(prompt string, skillCatalog string, cfg *config.Config) (SkillSelection, error) {
+	prompt = strings.TrimSpace(prompt)
+	skillCatalog = strings.TrimSpace(skillCatalog)
+	if prompt == "" || skillCatalog == "" {
+		return SkillSelection{}, nil
+	}
+
+	selectionPrompt := fmt.Sprintf(`You are planning command-line actions.
+Given a user request and a catalog of local skills, select up to 3 most relevant skills.
+Return STRICT JSON only (no markdown, no extra text) in this format:
+{"selected_skills":["skill-name-1","skill-name-2"],"strategy":"one concise sentence"}
+
+Rules:
+- Prefer empty selected_skills when no skills are relevant.
+- skill names must be exact names from catalog.
+- strategy should be concise and actionable.
+
+User request:
+%s
+
+Skill catalog:
+%s`, prompt, skillCatalog)
+
+	messages := []Message{{Role: "user", Content: selectionPrompt}}
+
+	var result string
+	var err error
+
+	switch cfg.Provider {
+	case "aliyun":
+		request := AliyunRequest{
+			Model:       cfg.Model,
+			Messages:    messages,
+			Stream:      false,
+			Temperature: 0.1,
+			TopP:        0.8,
+		}
+		result, err = callAliyun(request, cfg)
+	default:
+		request := OpenAIRequest{
+			Model:    cfg.Model,
+			Messages: messages,
+			Stream:   false,
+		}
+		result, err = callOpenAI(request, cfg)
+	}
+
+	if err != nil {
+		return SkillSelection{}, err
+	}
+
+	rawJSON := extractJSONObject(result)
+	if rawJSON == "" {
+		return SkillSelection{}, nil
+	}
+
+	var parsed struct {
+		SelectedSkills []string `json:"selected_skills"`
+		Strategy       string   `json:"strategy"`
+	}
+	if err := json.Unmarshal([]byte(rawJSON), &parsed); err != nil {
+		return SkillSelection{}, nil
+	}
+
+	selected := make([]string, 0, len(parsed.SelectedSkills))
+	seen := make(map[string]struct{}, len(parsed.SelectedSkills))
+	for _, name := range parsed.SelectedSkills {
+		value := strings.TrimSpace(name)
+		if value == "" {
+			continue
+		}
+		key := strings.ToLower(value)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		selected = append(selected, value)
+		if len(selected) >= 3 {
+			break
+		}
+	}
+
+	return SkillSelection{
+		SelectedSkills: selected,
+		Strategy:       strings.TrimSpace(parsed.Strategy),
+	}, nil
+}
+
 // callOpenAI 调用OpenAI API
 func callOpenAI(request OpenAIRequest, cfg *config.Config) (string, error) {
 	body, err := json.Marshal(request)
@@ -511,4 +606,31 @@ func buildFullPrompt(prompt string, cfg *config.Config) string {
 			"Prompt": prompt + envInfo,
 		},
 	})
+}
+
+func extractJSONObject(text string) string {
+	value := strings.TrimSpace(text)
+	if value == "" {
+		return ""
+	}
+
+	if strings.HasPrefix(value, "```") {
+		value = strings.TrimPrefix(value, "```")
+		value = strings.TrimSpace(value)
+		if strings.HasPrefix(strings.ToLower(value), "json") {
+			value = strings.TrimSpace(value[4:])
+		}
+		if strings.HasSuffix(value, "```") {
+			value = strings.TrimSuffix(value, "```")
+			value = strings.TrimSpace(value)
+		}
+	}
+
+	start := strings.Index(value, "{")
+	end := strings.LastIndex(value, "}")
+	if start == -1 || end == -1 || end < start {
+		return ""
+	}
+
+	return strings.TrimSpace(value[start : end+1])
 }

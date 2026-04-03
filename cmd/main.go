@@ -2,9 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -18,6 +20,7 @@ import (
 	"github/xiuivfbc/NaturalCmd/internal/executor"
 	"github/xiuivfbc/NaturalCmd/internal/history"
 	"github/xiuivfbc/NaturalCmd/internal/rag"
+	"github/xiuivfbc/NaturalCmd/internal/skills"
 	"github/xiuivfbc/NaturalCmd/internal/ui"
 )
 
@@ -62,8 +65,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 检查API密钥是否设置
-	if !checkAPIKey(cfg, localizer) {
+	var skillRegistry *skills.Registry
+	if cfg.SkillsEnabled {
+		skillRegistry, err = skills.Load(cfg.SkillsFile)
+		if err != nil {
+			fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: "errorLoadingSkills",
+				TemplateData: map[string]interface{}{
+					"Error": err,
+				},
+			}))
+			skillRegistry = &skills.Registry{}
+		}
+	}
+
+	// 检查API密钥是否设置。若存在本地 skill，则允许以 skill-only 模式运行。
+	if !checkAPIKey(cfg, localizer, skillRegistry) {
 		os.Exit(1)
 	}
 
@@ -113,7 +130,7 @@ func main() {
 
 		for {
 			// 生成脚本和解释
-			script, err := generateScriptAndExplanation(prompt, executionFeedback, cfg, localizer, historyStore, feedbackStore, silent)
+			script, err := generateScriptAndExplanation(prompt, executionFeedback, cfg, localizer, historyStore, feedbackStore, skillRegistry, silent)
 			if err != nil {
 				os.Exit(1)
 			}
@@ -227,8 +244,15 @@ func loadConfig() (*config.Config, *i18n.Localizer, error) {
 }
 
 // 检查API密钥是否设置
-func checkAPIKey(cfg *config.Config, localizer *i18n.Localizer) bool {
+func checkAPIKey(cfg *config.Config, localizer *i18n.Localizer, skillRegistry *skills.Registry) bool {
 	if cfg.APIKey == "" {
+		if skillRegistry != nil && skillRegistry.HasSkills() {
+			fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: "apiKeyMissingSkillOnlyMode",
+			}))
+			return true
+		}
+
 		fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: "errorApiKeyNotSet",
 		}))
@@ -301,8 +325,86 @@ func parseInlineHistoryQuery(input string) (string, bool) {
 }
 
 // 生成脚本和解释
-func generateScriptAndExplanation(prompt string, executionFeedback string, cfg *config.Config, localizer *i18n.Localizer, historyStore *history.Store, feedbackStore *rag.FeedbackStore, silent bool) (string, error) {
+func generateScriptAndExplanation(prompt string, executionFeedback string, cfg *config.Config, localizer *i18n.Localizer, historyStore *history.Store, feedbackStore *rag.FeedbackStore, skillRegistry *skills.Registry, silent bool) (string, error) {
 	promptForModel := strings.TrimSpace(prompt)
+	if strings.TrimSpace(executionFeedback) == "" && skillRegistry != nil && skillRegistry.HasSkills() {
+		if cfg.APIKey != "" {
+			selection, err := completion.GenerateSkillSelection(prompt, skillRegistry.BuildCatalog(), cfg)
+			if err != nil {
+				fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
+					MessageID: "smartSkillSelectFailed",
+					TemplateData: map[string]interface{}{
+						"Error": err,
+					},
+				}))
+			} else if len(selection.SelectedSkills) > 0 {
+				selectedContext := skillRegistry.BuildSelectedContext(selection.SelectedSkills, runtime.GOOS)
+				if strings.TrimSpace(selectedContext) != "" {
+					fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
+						MessageID: "smartSkillSelected",
+						TemplateData: map[string]interface{}{
+							"Skills": strings.Join(selection.SelectedSkills, ", "),
+						},
+					}))
+					if strings.TrimSpace(selection.Strategy) != "" {
+						fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
+							MessageID: "smartSkillStrategy",
+							TemplateData: map[string]interface{}{
+								"Strategy": selection.Strategy,
+							},
+						}))
+					}
+					promptForModel += "\n\n" + selectedContext
+				}
+			}
+		} else if resolved, ok := skillRegistry.ResolveCurrentOS(prompt); ok {
+			fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: "matchedSkill",
+				TemplateData: map[string]interface{}{
+					"Name": resolved.Skill.Name,
+				},
+			}))
+			fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: "matchedSkillTrigger",
+				TemplateData: map[string]interface{}{
+					"Trigger": resolved.MatchedBy,
+				},
+			}))
+
+			fmt.Printf("\n%s\n", localizer.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: "generatedScript",
+				TemplateData: map[string]interface{}{
+					"Script": resolved.Script,
+				},
+			}))
+
+			if !silent && !cfg.SilentMode {
+				fmt.Printf("\n%s\n", localizer.MustLocalize(&i18n.LocalizeConfig{
+					MessageID: "explanation",
+				}))
+
+				description := strings.TrimSpace(resolved.Skill.Description)
+				if description == "" {
+					description = localizer.MustLocalize(&i18n.LocalizeConfig{
+						MessageID: "matchedSkillDefaultDescription",
+						TemplateData: map[string]interface{}{
+							"Count": len(resolved.Skill.Commands),
+						},
+					})
+				}
+				fmt.Println(description)
+			}
+
+			return resolved.Script, nil
+		}
+	}
+
+	if cfg.APIKey == "" {
+		err := errors.New(localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "apiKeyRequiredForModelGeneration"}))
+		fmt.Println(err.Error())
+		return "", err
+	}
+
 	if cfg.RAGEnabled {
 		match := rag.BuildHistoryMatchWithFeedback(prompt, historyStore, feedbackStore, cfg.RAGTopK)
 		ragContext := match.Context

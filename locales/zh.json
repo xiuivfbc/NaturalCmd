@@ -27,6 +27,14 @@
     "description": "如何设置API密钥的提示",
     "other": "请使用以下命令设置API密钥：export API_KEY=your-api-key"
   },
+  "apiKeyMissingSkillOnlyMode": {
+    "description": "未设置 API Key 但允许 skill-only 模式时的提示",
+    "other": "未设置 API_KEY，当前将仅支持本地自定义 Skill；未命中 Skill 时无法调用模型生成命令。"
+  },
+  "apiKeyRequiredForModelGeneration": {
+    "description": "未命中 skill 且需要模型生成时的提示",
+    "other": "未设置 API_KEY，且当前输入未命中任何自定义 Skill，无法调用模型生成命令。"
+  },
   "generatingScript": {
     "description": "生成脚本时的消息",
     "other": "正在生成脚本..."
@@ -74,6 +82,34 @@
   "errorLoadingHistory": {
     "description": "加载历史记录失败时的错误信息",
     "other": "加载历史记录失败：{{.Error}}"
+  },
+  "errorLoadingSkills": {
+    "description": "加载自定义技能失败时的错误信息",
+    "other": "加载自定义技能失败：{{.Error}}"
+  },
+  "matchedSkill": {
+    "description": "命中自定义技能时的提示",
+    "other": "已命中自定义技能：{{.Name}}"
+  },
+  "matchedSkillTrigger": {
+    "description": "命中自定义技能时展示触发词",
+    "other": "触发词：{{.Trigger}}"
+  },
+  "matchedSkillDefaultDescription": {
+    "description": "未配置技能描述时的默认解释",
+    "other": "该技能会按顺序执行 {{.Count}} 条命令。"
+  },
+  "smartSkillSelectFailed": {
+    "description": "智能 skill 选择失败时的提示",
+    "other": "智能 Skill 选择失败，已回退到常规生成：{{.Error}}"
+  },
+  "smartSkillSelected": {
+    "description": "智能 skill 选择成功时展示技能列表",
+    "other": "AI 已选择技能：{{.Skills}}"
+  },
+  "smartSkillStrategy": {
+    "description": "智能 skill 选择后的策略说明",
+    "other": "策略：{{.Strategy}}"
   },
   "errorReadingInput": {
     "description": "读取交互输入失败时的错误信息",

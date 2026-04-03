@@ -13,6 +13,7 @@
 - 智能错误处理，执行失败时会自动重新生成脚本
 - 支持多语言输出（中文/英文）
 - 支持不同的 AI 模型提供商（OpenAI、阿里云）
+- 支持智能 Skill：AI 根据提示词自主选择并组合技能
 
 ## 示例
 亲测有效：![alt text](image.png)
@@ -59,6 +60,12 @@ SILENT_MODE=false
 
 # 启用轻量 RAG（基于历史命令检索增强）
 RAG_ENABLED=true
+
+# 启用自定义 Skill（本地命令集合）
+SKILLS_ENABLED=true
+
+# 自定义 Skill 配置文件路径
+SKILLS_FILE=skills.json
 
 # RAG 检索条数
 RAG_TOP_K=3
@@ -127,6 +134,8 @@ set API_KEY=your-api-key
 | `PROVIDER` | 模型提供商（`openai` 或 `aliyun`） | `aliyun` |
 | `LANGUAGE` | 解释的语言 | `zh` |
 | `SILENT_MODE` | 启用静默模式 | `false` |
+| `SKILLS_ENABLED` | 是否启用自定义 Skill | `true` |
+| `SKILLS_FILE` | 自定义 Skill 配置文件路径 | `skills.json` |
 | `RAG_ENABLED` | 是否启用基于历史记录的 RAG 增强 | `true` |
 | `RAG_TOP_K` | RAG 检索返回的历史条数 | `3` |
 | `RAG_MIN_LOCAL_HIT_SCORE` | 本地检索最低命中分（低于该值才视为未命中） | `4` |
@@ -142,3 +151,50 @@ set API_KEY=your-api-key
 4. **响应解析**：解析聊天补全响应（支持流式 SSE），实时拼接 `choices[].delta.content`（兼容 `message.content` / `output.text`），并提取最终单行命令。
 5. **交互执行**：展示生成命令，用户可选择执行、继续调整（补充信息后重生成）或取消。
 6. **失败闭环**：若命令执行失败，自动将错误信息、退出码和输出回灌给模型，重新生成更可靠的命令。
+
+## 智能 Skill
+
+可以在项目根目录创建 `skills.json`，把常用的复杂命令流程配置成 skill。运行时 AI 会先阅读技能目录，再根据你的提示词自主选择最相关 skill，最后综合生成命令。
+
+示例：
+
+```json
+{
+	"skills": [
+		{
+			"name": "project-check",
+			"description": "运行测试并构建项目",
+			"triggers": ["检查项目", "project check", "质量检查"],
+			"commands": [
+				"go test ./...",
+				"go build ./..."
+			],
+			"continue_on_error": false,
+			"priority": 10
+		},
+		{
+			"name": "quick-clean",
+			"triggers": ["快速清理"],
+			"commands": [
+				"go clean",
+				"go mod tidy"
+			],
+			"continue_on_error": true
+		}
+	]
+}
+```
+
+字段说明：
+
+- `name`：技能名（必填）
+- `description`：技能说明（可选，命中后会作为解释展示）
+- `triggers`：触发词列表（可选，不填时默认使用 `name`）
+- `commands`：命令集合（必填）
+- `continue_on_error`：是否在某条命令失败后继续执行后续命令（默认 `false`）
+- `priority`：同分命中时优先级，越大越优先（可选）
+
+命中规则：
+
+- 有 API Key 时：AI 会先选择 skill，再把选中 skill 的上下文和历史/RAG信息一起用于最终命令生成。
+- 无 API Key 时：退化为本地触发词命中（仅执行本地 skill，无法进行模型推理）。

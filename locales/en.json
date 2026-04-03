@@ -27,6 +27,14 @@
     "description": "Hint on how to set API key",
     "other": "Please set your API key using: export API_KEY=your-api-key"
   },
+  "apiKeyMissingSkillOnlyMode": {
+    "description": "Message when API key is missing but local skills allow skill-only mode",
+    "other": "API_KEY is not set. Running in local skill-only mode; model generation is unavailable when no skill matches."
+  },
+  "apiKeyRequiredForModelGeneration": {
+    "description": "Message when API key is required for fallback model generation",
+    "other": "API_KEY is not set and no custom skill matched this input, so model-based command generation is unavailable."
+  },
   "generatingScript": {
     "description": "Message when generating script",
     "other": "Generating script..."
@@ -74,6 +82,34 @@
   "errorLoadingHistory": {
     "description": "Error message when loading prompt history fails",
     "other": "Error loading prompt history: {{.Error}}"
+  },
+  "errorLoadingSkills": {
+    "description": "Error message when loading custom skills fails",
+    "other": "Error loading custom skills: {{.Error}}"
+  },
+  "matchedSkill": {
+    "description": "Message shown when a custom skill is matched",
+    "other": "Matched custom skill: {{.Name}}"
+  },
+  "matchedSkillTrigger": {
+    "description": "Shows which trigger matched the custom skill",
+    "other": "Trigger: {{.Trigger}}"
+  },
+  "matchedSkillDefaultDescription": {
+    "description": "Default explanation for a custom skill when description is not set",
+    "other": "This skill runs {{.Count}} commands in order."
+  },
+  "smartSkillSelectFailed": {
+    "description": "Message shown when model-driven skill selection fails",
+    "other": "Smart skill selection failed, falling back to regular generation: {{.Error}}"
+  },
+  "smartSkillSelected": {
+    "description": "Message shown when model selects skills",
+    "other": "AI selected skills: {{.Skills}}"
+  },
+  "smartSkillStrategy": {
+    "description": "Strategy text from model-driven skill selection",
+    "other": "Strategy: {{.Strategy}}"
   },
   "errorReadingInput": {
     "description": "Error message when interactive input fails",

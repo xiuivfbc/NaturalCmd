@@ -14,6 +14,8 @@ type Config struct {
 	Language          string
 	SilentMode        bool
 	Provider          string // 模型提供商: openai, aliyun
+	SkillsEnabled     bool
+	SkillsFile        string
 	HistoryFile       string
 	HistoryMax        int
 	RAGEnabled        bool
@@ -33,6 +35,8 @@ func Load() (*Config, error) {
 		Language:          getEnv("LANGUAGE", "en"),
 		SilentMode:        getEnv("SILENT_MODE", "false") == "true",
 		Provider:          getEnv("PROVIDER", "openai"),
+		SkillsEnabled:     getEnvAsBool("SKILLS_ENABLED", true),
+		SkillsFile:        getEnv("SKILLS_FILE", "skills.json"),
 		HistoryFile:       getEnv("HISTORY_FILE", ""),
 		HistoryMax:        getEnvAsInt("HISTORY_MAX_CAPACITY", 50),
 		RAGEnabled:        getEnvAsBool("RAG_ENABLED", true),
