@@ -22,7 +22,10 @@ import (
 	"github/xiuivfbc/NaturalCmd/internal/rag"
 	"github/xiuivfbc/NaturalCmd/internal/skills"
 	"github/xiuivfbc/NaturalCmd/internal/ui"
+	"github/xiuivfbc/NaturalCmd/internal/utils"
 )
+
+const maxAutoFormatRetries = 3
 
 // 全局 i18n bundle
 var bundle *i18n.Bundle
@@ -127,13 +130,30 @@ func main() {
 
 		initialPrompt := strings.TrimSpace(prompt)
 		executionFeedback := ""
+		formatRetryCount := 0
 
 		for {
 			// 生成脚本和解释
 			script, err := generateScriptAndExplanation(prompt, executionFeedback, cfg, localizer, historyStore, feedbackStore, skillRegistry, silent)
 			if err != nil {
+				var formatErr *utils.ScriptFormatError
+				if errors.As(err, &formatErr) {
+					formatRetryCount++
+					if formatRetryCount > maxAutoFormatRetries {
+						fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
+							MessageID: "errorGeneratingScript",
+							TemplateData: map[string]interface{}{
+								"Error": err,
+							},
+						}))
+						os.Exit(1)
+					}
+					executionFeedback = buildFormatFeedback(formatErr)
+					continue
+				}
 				os.Exit(1)
 			}
+			formatRetryCount = 0
 
 			// 让用户选择是否执行
 			selectedOption := promptUserForAction(localizer)
@@ -207,6 +227,7 @@ func main() {
 				// 更新prompt，添加补充词
 				prompt = prompt + " " + additionalInfo
 				executionFeedback = ""
+				formatRetryCount = 0
 				continue
 			}
 		}
@@ -443,6 +464,10 @@ func generateScriptAndExplanation(prompt string, executionFeedback string, cfg *
 		return "", err
 	}
 
+	if err := utils.ValidateScriptOutput(script); err != nil {
+		return "", err
+	}
+
 	fmt.Printf("\n%s\n", localizer.MustLocalize(&i18n.LocalizeConfig{
 		MessageID: "generatedScript",
 		TemplateData: map[string]interface{}{
@@ -600,6 +625,26 @@ func buildExecutionFeedback(script string, result *executor.ExecutionResult, err
 	}
 
 	builder.WriteString("Return a new single-line command only. Do not explain it.\n")
+	return builder.String()
+}
+
+func buildFormatFeedback(formatErr *utils.ScriptFormatError) string {
+	var builder strings.Builder
+
+	builder.WriteString("\n\nThe previous model output was invalid because it did not match the required single-line command format.\n")
+	if strings.TrimSpace(formatErr.Reason) != "" {
+		builder.WriteString("Validation error:\n")
+		builder.WriteString(formatErr.Reason)
+		builder.WriteString("\n")
+	}
+
+	if trimmed := trimExecutionOutput(formatErr.Script); trimmed != "" {
+		builder.WriteString("Invalid output:\n")
+		builder.WriteString(trimmed)
+		builder.WriteString("\n")
+	}
+
+	builder.WriteString("Return exactly one single-line executable command only. No markdown, no explanation, no code fences, no shell launcher.\n")
 	return builder.String()
 }
 

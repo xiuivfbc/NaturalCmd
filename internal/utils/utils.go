@@ -4,7 +4,18 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"unicode"
 )
+
+// ScriptFormatError 表示模型返回结果不符合单行命令格式要求。
+type ScriptFormatError struct {
+	Reason string
+	Script string
+}
+
+func (e *ScriptFormatError) Error() string {
+	return e.Reason
+}
 
 // GetShell 获取当前shell
 func GetShell() string {
@@ -56,6 +67,39 @@ func ExtractScript(response string) string {
 	return strings.TrimSpace(response)
 }
 
+// ValidateScriptOutput 检查模型输出是否符合可执行单行命令的基本格式。
+func ValidateScriptOutput(script string) error {
+	value := strings.TrimSpace(script)
+	if value == "" {
+		return &ScriptFormatError{Reason: "empty response", Script: script}
+	}
+
+	if strings.ContainsAny(value, "\r\n") {
+		return &ScriptFormatError{Reason: "response must be a single line command", Script: script}
+	}
+
+	if strings.Contains(value, "```") {
+		return &ScriptFormatError{Reason: "markdown code fences are not allowed", Script: script}
+	}
+
+	fields := strings.Fields(value)
+	if len(fields) == 0 {
+		return &ScriptFormatError{Reason: "empty response", Script: script}
+	}
+
+	firstToken := strings.TrimLeft(strings.Trim(fields[0], "\"'"), "@")
+	if firstToken == "" || !looksLikeCommandToken(firstToken) {
+		return &ScriptFormatError{Reason: "response does not start with a command-like token", Script: script}
+	}
+
+	commandName := normalizeCommandName(firstToken)
+	if isForbiddenShellLauncher(commandName) {
+		return &ScriptFormatError{Reason: "shell launcher commands are not allowed", Script: script}
+	}
+
+	return nil
+}
+
 // isShellTag 判断字符串是否是 shell 语言标识符
 func isShellTag(s string) bool {
 	switch strings.ToLower(s) {
@@ -63,6 +107,51 @@ func isShellTag(s string) bool {
 		return true
 	}
 	return false
+}
+
+func looksLikeCommandToken(token string) bool {
+	if token == "" {
+		return false
+	}
+
+	first := []rune(token)[0]
+	if first > unicode.MaxASCII {
+		return false
+	}
+
+	if unicode.IsLetter(first) || unicode.IsDigit(first) {
+		return true
+	}
+
+	switch first {
+	case '.', '/', '\\', '~', '$', ':':
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeCommandName(command string) string {
+	command = strings.Trim(command, "\"'")
+	command = strings.ReplaceAll(command, "\\", "/")
+	return strings.ToLower(strings.TrimPrefix(filepathBase(command), "@"))
+}
+
+func isForbiddenShellLauncher(command string) bool {
+	switch command {
+	case "bash", "sh", "zsh", "fish", "dash", "ksh", "cmd", "cmd.exe", "powershell", "powershell.exe", "pwsh", "pwsh.exe":
+		return true
+	default:
+		return false
+	}
+}
+
+func filepathBase(path string) string {
+	lastSlash := strings.LastIndexAny(path, "/\\")
+	if lastSlash >= 0 {
+		return path[lastSlash+1:]
+	}
+	return path
 }
 
 // ListFiles 列出指定目录中的文件和目录

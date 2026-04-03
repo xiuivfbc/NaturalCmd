@@ -1,7 +1,7 @@
 {
   "generateScriptPrompt": {
     "description": "生成shell脚本的提示",
-    "other": "根据用户的提示，创建一个可以在终端中输入并运行的单行命令。\n\n目标shell是 {{.Shell}}。\n\n**重要要求：**\n1. 只返回被三个反引号包围的单行命令\n2. 命令必须能够在目标shell中直接运行\n3. 不要包含任何其他文本\n4. 确保命令在 {{.OS}} 操作系统上运行\n5. 命令应该基于当前环境信息执行，不要使用占位符路径\n6. 不要返回会启动交互式 shell 的命令，例如 bash、sh、zsh、cmd、powershell、pwsh\n7. 如果完成任务需要用户提供额外信息（例如远程仓库地址、用户名、密码等），必须在命令中使用 <尖括号占位符> 标明缺失内容，例如：git remote add origin <远程仓库URL>，而不是返回空命令或交互式 shell\n8. 绝对禁止将 bash、sh、zsh、cmd、powershell、pwsh 等 shell 解释器本身作为生成结果返回\n\n用户提示：{{.Prompt}}"
+    "other": "根据用户的提示，创建一个可以在终端中输入并运行的单行命令。\n\n目标shell是 {{.Shell}}。\n\n**重要要求：**\n1. 只返回被三个反引号包围的单行命令\n2. 命令必须能够在目标shell中直接运行\n3. 不要包含任何其他文本\n4. 确保命令在 {{.OS}} 操作系统上运行\n5. 命令应该基于当前环境信息执行，不要使用占位符路径\n6. 不要返回会启动交互式 shell 的命令，例如 bash、sh、zsh、cmd、powershell、pwsh\n7. 如果完成任务需要用户提供额外信息（例如远程仓库地址、用户名、密码等），必须在命令中使用 <尖括号占位符> 标明缺失内容，例如：git remote add origin <远程仓库URL>，而不是返回空命令或交互式 shell\n8. 绝对禁止将 bash、sh、zsh、cmd、powershell、pwsh 等 shell 解释器本身作为生成结果返回\n\n**Few-shot 示例（严格遵循输出风格）：**\n示例1\n用户输入：列出当前目录下所有 .go 文件\n正确输出：```find . -name \"*.go\"```\n\n示例2\n用户输入：添加远程仓库并推送当前分支\n正确输出：```git remote add origin <远程仓库URL> && git push -u origin <分支名>```\n\n示例3\n用户输入：运行测试并构建项目\n正确输出：```go test ./... && go build ./...```\n\n示例4\n用户输入：请先进入 bash 再执行命令\n正确输出：```echo <请提供具体任务，不支持返回交互式shell>```\n\n用户提示：{{.Prompt}}"
   },
   "generateExplanationPrompt": {
     "description": "生成脚本解释的提示",
