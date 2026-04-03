@@ -137,7 +137,7 @@
   },
   "executeScriptQuestion": {
     "description": "询问是否执行脚本",
-    "other": "你想要执行这个脚本吗？"
+    "other": "你想要执行这个脚本吗？(自选自承哦~）"
   },
   "executeScriptOptionConfirm": {
     "description": "确认执行脚本的选项",

@@ -137,7 +137,7 @@
   },
   "executeScriptQuestion": {
     "description": "Question about executing script",
-    "other": "Do you want to execute this script?"
+    "other": "Do you want to execute this script?(Self-responsible risk)"
   },
   "executeScriptOptionConfirm": {
     "description": "Confirm script execution option",
