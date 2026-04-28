@@ -9,6 +9,9 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/transform"
 )
 
 // ExecutionResult 包含命令执行结果
@@ -29,6 +32,8 @@ func ExecuteCommand(script string) (*ExecutionResult, error) {
 
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
+		// 在 Windows 上切换代码页为 UTF-8 (65001) 以支持中文输出
+		script = "chcp 65001 > nul && " + script
 		cmd = exec.Command("cmd.exe", "/c", script)
 	} else {
 		cmd = exec.Command("sh", "-c", script)
@@ -37,14 +42,37 @@ func ExecuteCommand(script string) (*ExecutionResult, error) {
 	var stdoutBuffer bytes.Buffer
 	var stderrBuffer bytes.Buffer
 
-	cmd.Stdout = io.MultiWriter(os.Stdout, &stdoutBuffer)
-	cmd.Stderr = io.MultiWriter(os.Stderr, &stderrBuffer)
+	// 在 Windows 上只缓冲输出，不实时输出到 os.Stdout（避免 GBK 编码问题）
+	// 在 Unix 上实时输出以保持交互性
+	if runtime.GOOS == "windows" {
+		cmd.Stdout = &stdoutBuffer
+		cmd.Stderr = &stderrBuffer
+	} else {
+		cmd.Stdout = io.MultiWriter(os.Stdout, &stdoutBuffer)
+		cmd.Stderr = io.MultiWriter(os.Stderr, &stderrBuffer)
+	}
 	cmd.Stdin = os.Stdin
 
 	err := cmd.Run()
+
+	// 在 Windows 上将 GBK 编码输出转换为 UTF-8
+	stdoutStr := stdoutBuffer.String()
+	stderrStr := stderrBuffer.String()
+	if runtime.GOOS == "windows" {
+		stdoutStr = decodeGBK(stdoutStr)
+		stderrStr = decodeGBK(stderrStr)
+		// 转换完成后输出到终端
+		if stdoutStr != "" {
+			fmt.Print(stdoutStr)
+		}
+		if stderrStr != "" {
+			fmt.Fprint(os.Stderr, stderrStr)
+		}
+	}
+
 	result := &ExecutionResult{
-		Stdout:   stdoutBuffer.String(),
-		Stderr:   stderrBuffer.String(),
+		Stdout:   stdoutStr,
+		Stderr:   stderrStr,
 		ExitCode: exitCode(cmd, err),
 	}
 
@@ -78,6 +106,22 @@ func isForbiddenShellLauncher(command string) bool {
 	default:
 		return false
 	}
+}
+
+func decodeGBK(s string) string {
+	if s == "" {
+		return s
+	}
+
+	by := []byte(s)
+	I := bytes.NewReader(by)
+	O := transform.NewReader(I, simplifiedchinese.GBK.NewDecoder())
+	out, err := io.ReadAll(O)
+	if err != nil {
+		// 转换失败时返回原字符串
+		return s
+	}
+	return string(out)
 }
 
 func exitCode(cmd *exec.Cmd, err error) int {

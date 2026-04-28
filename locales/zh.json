@@ -155,6 +155,18 @@
     "description": "用户选择取消时的礼貌告别",
     "other": "好的，那这次先算了。祝你接下来一切顺利。"
   },
+  "longModeEnabled": {
+    "description": "开启长对话模式时的提示",
+    "other": "已进入长对话模式。上下文会持续保留；再次输入 -l 可退出。"
+  },
+  "longModeDisabled": {
+    "description": "退出长对话模式时的提示",
+    "other": "已退出长对话模式，并清空本次长对话上下文。"
+  },
+  "shellDirectModeHelp": {
+    "description": "命令行直连模式的帮助提示",
+    "other": "进入命令行直连模式。请输入 !<命令> 以直接执行命令（无需 LLM），输入 ! 显示此帮助，或继续输入其他内容返回 LLM 模式。"
+  },
   "invalidChoice": {
     "description": "无效选择提示",
     "other": "无效选择。请输入'要得'或'不得行'。"

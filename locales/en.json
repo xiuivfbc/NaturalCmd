@@ -155,6 +155,18 @@
     "description": "Polite farewell when the user cancels",
     "other": "Alright, we'll leave it here for now. Have a good one."
   },
+  "longModeEnabled": {
+    "description": "Shown when long conversation mode is enabled",
+    "other": "Long conversation mode enabled. Context will be kept until you enter -l again to exit."
+  },
+  "longModeDisabled": {
+    "description": "Shown when long conversation mode is disabled",
+    "other": "Long conversation mode disabled. Session context has been cleared."
+  },
+  "shellDirectModeHelp": {
+    "description": "Help text for shell direct mode",
+    "other": "Entered shell direct mode. Enter !<command> to execute commands directly without LLM, ! to show this help, or continue with other input to return to LLM mode."
+  },
   "invalidChoice": {
     "description": "Invalid choice prompt",
     "other": "Invalid choice. Please enter 'ok' or 'not'."
