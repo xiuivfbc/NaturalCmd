@@ -23,6 +23,35 @@ var bundle *i18n.Bundle
 
 const debugPromptLogFile = "long_mode_prompts.log"
 
+// ModelConfig 用于存储特定模型的配置信息
+type ModelConfig struct {
+	Provider string
+	Model    string
+	APIKey   string
+	Endpoint string
+}
+
+// selectModel 根据调用类型选择合适的模型配置
+// script_generation 使用主模型，其他调用使用副模型
+func selectModel(callType string, cfg *config.Config) ModelConfig {
+	switch callType {
+	case "script_generation":
+		return ModelConfig{
+			Provider: cfg.ModelPrimaryProvider,
+			Model:    cfg.ModelPrimary,
+			APIKey:   cfg.ModelPrimaryKey,
+			Endpoint: cfg.ModelPrimaryEndpoint,
+		}
+	default: // explanation, query_expansion, skill_selection 使用副模型
+		return ModelConfig{
+			Provider: cfg.ModelSecondaryProvider,
+			Model:    cfg.ModelSecondary,
+			APIKey:   cfg.ModelSecondaryKey,
+			Endpoint: cfg.ModelSecondaryEndpoint,
+		}
+	}
+}
+
 // 初始化 i18n bundle
 func init() {
 	bundle = i18n.NewBundle(language.English)
@@ -55,7 +84,7 @@ func writeDebugPrompt(kind string, prompt string, enabled bool) {
 	_, _ = file.WriteString(entry)
 }
 
-// GenerateScript 生成shell脚本
+// GenerateScript 生成shell脚本 - 使用主模型
 func GenerateScript(prompt string, cfg *config.Config, debugLongMode bool) (string, error) {
 	// 模拟模式：直接返回预设命令
 	if cfg.APIKey == "mock" {
@@ -73,24 +102,27 @@ func GenerateScript(prompt string, cfg *config.Config, debugLongMode bool) (stri
 	var result string
 	var err error
 
+	// 使用主模型生成脚本
+	modelCfg := selectModel("script_generation", cfg)
+
 	// 根据提供商选择不同的API调用
-	switch cfg.Provider {
+	switch modelCfg.Provider {
 	case "aliyun":
 		request := AliyunRequest{
-			Model:       cfg.Model,
+			Model:       modelCfg.Model,
 			Messages:    messages,
 			Stream:      false,
 			Temperature: 0.7,
 			TopP:        0.95,
 		}
-		result, err = callAliyun(request, cfg)
+		result, err = callAliyun(request, cfg, modelCfg.APIKey, modelCfg.Endpoint)
 	default: // openai
 		request := OpenAIRequest{
-			Model:    cfg.Model,
+			Model:    modelCfg.Model,
 			Messages: messages,
 			Stream:   false,
 		}
-		result, err = callOpenAI(request, cfg)
+		result, err = callOpenAI(request, cfg, modelCfg.APIKey, modelCfg.Endpoint)
 	}
 
 	if err != nil {
@@ -102,7 +134,7 @@ func GenerateScript(prompt string, cfg *config.Config, debugLongMode bool) (stri
 	return script, nil
 }
 
-// GenerateExplanation 生成脚本解释
+// GenerateExplanation 生成脚本解释 - 使用副模型
 func GenerateExplanation(script string, cfg *config.Config, debugLongMode bool) (string, error) {
 	// 模拟模式
 	if cfg.APIKey == "mock" {
@@ -136,30 +168,33 @@ func GenerateExplanation(script string, cfg *config.Config, debugLongMode bool) 
 	var result string
 	var err error
 
+	// 使用副模型生成解释
+	modelCfg := selectModel("explanation", cfg)
+
 	// 根据提供商选择不同的API调用
-	switch cfg.Provider {
+	switch modelCfg.Provider {
 	case "aliyun":
 		request := AliyunRequest{
-			Model:       cfg.Model,
+			Model:       modelCfg.Model,
 			Messages:    messages,
 			Stream:      true,
 			Temperature: 0.7,
 			TopP:        0.95,
 		}
-		result, err = callAliyun(request, cfg)
+		result, err = callAliyun(request, cfg, modelCfg.APIKey, modelCfg.Endpoint)
 	default: // openai
 		request := OpenAIRequest{
-			Model:    cfg.Model,
+			Model:    modelCfg.Model,
 			Messages: messages,
 			Stream:   true,
 		}
-		result, err = callOpenAI(request, cfg)
+		result, err = callOpenAI(request, cfg, modelCfg.APIKey, modelCfg.Endpoint)
 	}
 
 	return result, err
 }
 
-// GenerateQueryExpansion 生成用于检索增强的语义扩展词（逗号分隔）。
+// GenerateQueryExpansion 生成用于检索增强的语义扩展词 - 使用副模型
 func GenerateQueryExpansion(query string, cfg *config.Config, debugLongMode bool) (string, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
@@ -173,23 +208,26 @@ func GenerateQueryExpansion(query string, cfg *config.Config, debugLongMode bool
 	var result string
 	var err error
 
-	switch cfg.Provider {
+	// 使用副模型扩展查询
+	modelCfg := selectModel("query_expansion", cfg)
+
+	switch modelCfg.Provider {
 	case "aliyun":
 		request := AliyunRequest{
-			Model:       cfg.Model,
+			Model:       modelCfg.Model,
 			Messages:    messages,
 			Stream:      false,
 			Temperature: 0.2,
 			TopP:        0.8,
 		}
-		result, err = callAliyun(request, cfg)
+		result, err = callAliyun(request, cfg, modelCfg.APIKey, modelCfg.Endpoint)
 	default:
 		request := OpenAIRequest{
-			Model:    cfg.Model,
+			Model:    modelCfg.Model,
 			Messages: messages,
 			Stream:   false,
 		}
-		result, err = callOpenAI(request, cfg)
+		result, err = callOpenAI(request, cfg, modelCfg.APIKey, modelCfg.Endpoint)
 	}
 
 	if err != nil {
@@ -205,7 +243,7 @@ type SkillSelection struct {
 	Strategy       string
 }
 
-// GenerateSkillSelection 让模型根据用户输入和技能目录自主选择可用技能。
+// GenerateSkillSelection 让模型根据用户输入和技能目录自主选择可用技能 - 使用副模型
 func GenerateSkillSelection(prompt string, skillCatalog string, cfg *config.Config, debugLongMode bool) (SkillSelection, error) {
 	prompt = strings.TrimSpace(prompt)
 	skillCatalog = strings.TrimSpace(skillCatalog)
@@ -235,23 +273,26 @@ Skill catalog:
 	var result string
 	var err error
 
-	switch cfg.Provider {
+	// 使用副模型选择技能
+	modelCfg := selectModel("skill_selection", cfg)
+
+	switch modelCfg.Provider {
 	case "aliyun":
 		request := AliyunRequest{
-			Model:       cfg.Model,
+			Model:       modelCfg.Model,
 			Messages:    messages,
 			Stream:      false,
 			Temperature: 0.1,
 			TopP:        0.8,
 		}
-		result, err = callAliyun(request, cfg)
+		result, err = callAliyun(request, cfg, modelCfg.APIKey, modelCfg.Endpoint)
 	default:
 		request := OpenAIRequest{
-			Model:    cfg.Model,
+			Model:    modelCfg.Model,
 			Messages: messages,
 			Stream:   false,
 		}
-		result, err = callOpenAI(request, cfg)
+		result, err = callOpenAI(request, cfg, modelCfg.APIKey, modelCfg.Endpoint)
 	}
 
 	if err != nil {
@@ -296,19 +337,28 @@ Skill catalog:
 }
 
 // callOpenAI 调用OpenAI API
-func callOpenAI(request OpenAIRequest, cfg *config.Config) (string, error) {
+// apiKey 和 apiEndpoint 允许在调用时指定，支持跨厂商配置
+func callOpenAI(request OpenAIRequest, cfg *config.Config, apiKey string, apiEndpoint string) (string, error) {
+	// 使用传入的参数，如果为空则使用配置中的默认值
+	if apiKey == "" {
+		apiKey = cfg.APIKey
+	}
+	if apiEndpoint == "" {
+		apiEndpoint = cfg.APIEndpoint
+	}
+
 	body, err := json.Marshal(request)
 	if err != nil {
 		return "", err
 	}
 
-	req, err := http.NewRequest("POST", cfg.APIEndpoint, bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", apiEndpoint, bytes.NewBuffer(body))
 	if err != nil {
 		return "", err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", cfg.APIKey))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -396,19 +446,28 @@ done:
 }
 
 // callAliyun 调用阿里云大模型API
-func callAliyun(request AliyunRequest, cfg *config.Config) (string, error) {
+// apiKey 和 apiEndpoint 允许在调用时指定，支持跨厂商配置
+func callAliyun(request AliyunRequest, cfg *config.Config, apiKey string, apiEndpoint string) (string, error) {
+	// 使用传入的参数，如果为空则使用配置中的默认值
+	if apiKey == "" {
+		apiKey = cfg.APIKey
+	}
+	if apiEndpoint == "" {
+		apiEndpoint = cfg.APIEndpoint
+	}
+
 	body, err := json.Marshal(request)
 	if err != nil {
 		return "", err
 	}
 
-	req, err := http.NewRequest("POST", cfg.APIEndpoint, bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", apiEndpoint, bytes.NewBuffer(body))
 	if err != nil {
 		return "", err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", cfg.APIKey))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
 
 	// 设置超时
 	client := &http.Client{

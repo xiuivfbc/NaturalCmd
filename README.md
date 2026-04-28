@@ -36,9 +36,54 @@ go build -o naturalcmd ./cmd/main.go
 
 ## 使用
 
+### 双模型配置（推荐）- 降低成本 40-50%
+
+NaturalCmd 支持 **主副模型分离策略**，实现成本和性能的平衡：
+
+| 模型用途 | 适用场景 | 复杂度 | 推荐选择 |
+|---------|---------|--------|---------|
+| **主模型** | 脚本生成（核心功能） | ⭐⭐⭐⭐⭐ | GPT-4o、Claude-3.5 |
+| **副模型** | 脚本解释、查询扩展、技能选择 | ⭐⭐ | GPT-4o-mini、Claude-3-haiku |
+
+**特点：**
+- ✅ 两个模型可来自不同厂商（如 OpenAI 主模型 + 阿里云副模型）
+- ✅ 独立配置 API Key、Endpoint
+- ✅ 完全向后兼容（不配置时自动使用单模型）
+- ✅ 成本节省 40-50% 而不影响核心体验
+
+**跨厂商配置示例（OpenAI + 阿里云）：**
+
+```env
+# 主模型：OpenAI GPT-4o（脚本生成）
+MODEL_PRIMARY=gpt-4o
+MODEL_PRIMARY_PROVIDER=openai
+MODEL_PRIMARY_KEY=sk-xxx-your-openai-key
+MODEL_PRIMARY_ENDPOINT=https://api.openai.com/v1/chat/completions
+
+# 副模型：阿里云 Qwen（解释、扩展、技能选择）
+MODEL_SECONDARY=qwen2.5-7b-instruct
+MODEL_SECONDARY_PROVIDER=aliyun
+MODEL_SECONDARY_KEY=sk-xxx-your-aliyun-key
+MODEL_SECONDARY_ENDPOINT=https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+```
+
+**同厂商简化配置示例：**
+
+```env
+# 主模型
+MODEL_PRIMARY=gpt-4o
+MODEL_PRIMARY_PROVIDER=openai
+MODEL_PRIMARY_KEY=sk-xxx
+
+# 副模型（如未指定以下字段，自动使用主模型配置）
+MODEL_SECONDARY=gpt-4o-mini
+```
+
+完整配置选项见 [.env.example](.env.example)
+
 ### 设置 API 密钥
 
-#### 使用 .env 文件（推荐）
+#### 使用 .env 文件（旧式单模型配置）
 
 在项目根目录下创建一个 `.env` 文件，添加以下内容：
 

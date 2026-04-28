@@ -24,17 +24,64 @@ type Config struct {
 	RAGMinLocalCover  float64
 	RAGFeedbackFile   string
 	RAGSemanticExpand bool
+
+	// 主副模型配置 (支持跨厂商)
+	ModelPrimary         string // 主模型名称 (e.g., "gpt-4o")
+	ModelPrimaryProvider string // 主模型提供商 (openai, aliyun)
+	ModelPrimaryKey      string // 主模型 API Key
+	ModelPrimaryEndpoint string // 主模型 API Endpoint
+
+	ModelSecondary         string // 副模型名称 (e.g., "gpt-4o-mini")
+	ModelSecondaryProvider string // 副模型提供商 (openai, aliyun)
+	ModelSecondaryKey      string // 副模型 API Key
+	ModelSecondaryEndpoint string // 副模型 API Endpoint
 }
 
 // Load 加载配置
 func Load() (*Config, error) {
+	// 主模型配置：如果没有指定，则使用原有的 MODEL/PROVIDER/API_KEY/API_ENDPOINT
+	modelPrimary := getEnv("MODEL_PRIMARY", "")
+	if modelPrimary == "" {
+		modelPrimary = getEnv("MODEL", "gpt-4o-mini")
+	}
+	modelPrimaryProvider := getEnv("MODEL_PRIMARY_PROVIDER", "")
+	if modelPrimaryProvider == "" {
+		modelPrimaryProvider = getEnv("PROVIDER", "openai")
+	}
+	modelPrimaryKey := getEnv("MODEL_PRIMARY_KEY", "")
+	if modelPrimaryKey == "" {
+		modelPrimaryKey = getEnv("API_KEY", getEnv("OPENAI_KEY", ""))
+	}
+	modelPrimaryEndpoint := getEnv("MODEL_PRIMARY_ENDPOINT", "")
+	if modelPrimaryEndpoint == "" {
+		modelPrimaryEndpoint = getEnv("API_ENDPOINT", "https://api.openai.com/v1/chat/completions")
+	}
+
+	// 副模型配置：如果没有指定，则使用原有的 MODEL/PROVIDER/API_KEY/API_ENDPOINT
+	modelSecondary := getEnv("MODEL_SECONDARY", "")
+	if modelSecondary == "" {
+		modelSecondary = modelPrimary
+	}
+	modelSecondaryProvider := getEnv("MODEL_SECONDARY_PROVIDER", "")
+	if modelSecondaryProvider == "" {
+		modelSecondaryProvider = modelPrimaryProvider
+	}
+	modelSecondaryKey := getEnv("MODEL_SECONDARY_KEY", "")
+	if modelSecondaryKey == "" {
+		modelSecondaryKey = modelPrimaryKey
+	}
+	modelSecondaryEndpoint := getEnv("MODEL_SECONDARY_ENDPOINT", "")
+	if modelSecondaryEndpoint == "" {
+		modelSecondaryEndpoint = modelPrimaryEndpoint
+	}
+
 	return &Config{
-		APIKey:            getEnv("API_KEY", getEnv("OPENAI_KEY", "")),
-		APIEndpoint:       getEnv("API_ENDPOINT", getEnv("API_ENDPOINT", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")),
-		Model:             getEnv("MODEL", "gpt-4o-mini"),
+		APIKey:            modelPrimaryKey,      // 设置为主模型 Key，保持向后兼容性
+		APIEndpoint:       modelPrimaryEndpoint, // 设置为主模型 Endpoint，保持向后兼容性
+		Model:             modelPrimary,
 		Language:          getEnv("LANGUAGE", "en"),
 		SilentMode:        getEnv("SILENT_MODE", "false") == "true",
-		Provider:          getEnv("PROVIDER", "openai"),
+		Provider:          modelPrimaryProvider,
 		SkillsEnabled:     getEnvAsBool("SKILLS_ENABLED", true),
 		SkillsFile:        getEnv("SKILLS_FILE", "skills.json"),
 		HistoryFile:       getEnv("HISTORY_FILE", ""),
@@ -45,6 +92,16 @@ func Load() (*Config, error) {
 		RAGMinLocalCover:  getEnvAsFloat64("RAG_MIN_LOCAL_COVERAGE", 0.45),
 		RAGFeedbackFile:   getEnv("RAG_FEEDBACK_FILE", ""),
 		RAGSemanticExpand: getEnvAsBool("RAG_SEMANTIC_EXPAND", true),
+
+		ModelPrimary:         modelPrimary,
+		ModelPrimaryProvider: modelPrimaryProvider,
+		ModelPrimaryKey:      modelPrimaryKey,
+		ModelPrimaryEndpoint: modelPrimaryEndpoint,
+
+		ModelSecondary:         modelSecondary,
+		ModelSecondaryProvider: modelSecondaryProvider,
+		ModelSecondaryKey:      modelSecondaryKey,
+		ModelSecondaryEndpoint: modelSecondaryEndpoint,
 	}, nil
 }
 
