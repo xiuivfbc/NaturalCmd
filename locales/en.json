@@ -186,5 +186,17 @@
   "enterAdditionalInfo": {
     "description": "Prompt for additional information",
     "other": "Please enter additional information:"
+  },
+  "dangerousOperationDetected": {
+    "description": "Warning message when dangerous operation is detected",
+    "other": "DANGEROUS OPERATION DETECTED!"
+  },
+  "confirmDangerousOperation": {
+    "description": "Confirmation prompt for dangerous operations",
+    "other": "This command contains dangerous operations. Do you want to continue?"
+  },
+  "operationCancelled": {
+    "description": "Message when user cancels dangerous operation",
+    "other": "Operation cancelled."
   }
 }

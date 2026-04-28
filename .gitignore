@@ -1,7 +1,7 @@
 .env
-history.json
-feedback.json
+locales/history.json
+locales/feedback.json
 a.txt
-skills.json
+locales/skills.json
 long_mode_prompts.log
 naturalcmd.exe

@@ -186,5 +186,17 @@
   "enterAdditionalInfo": {
     "description": "请输入补充信息",
     "other": "请输入补充信息："
+  },
+  "dangerousOperationDetected": {
+    "description": "检测到危险操作时的警告",
+    "other": "检测到危险操作！"
+  },
+  "confirmDangerousOperation": {
+    "description": "危险操作的确认提示",
+    "other": "该命令包含危险操作。确认要继续执行吗？"
+  },
+  "operationCancelled": {
+    "description": "用户取消危险操作时的消息",
+    "other": "已取消操作。"
   }
 }

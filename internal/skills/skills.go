@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const defaultSkillsFile = "skills.json"
+const defaultSkillsFile = "locales/skills.json"
 
 // Registry 保存已加载的自定义技能。
 type Registry struct {

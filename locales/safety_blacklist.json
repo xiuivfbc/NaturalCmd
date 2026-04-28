@@ -1,0 +1,188 @@
+{
+  "dangerous_commands": [
+    {
+      "keyword": "rm",
+      "consequence": "删除文件或目录，操作无法撤销"
+    },
+    {
+      "keyword": "rmdir",
+      "consequence": "删除目录，操作无法撤销"
+    },
+    {
+      "keyword": "del",
+      "consequence": "Windows 删除文件，操作无法撤销"
+    },
+    {
+      "keyword": "erase",
+      "consequence": "Windows 删除文件，操作无法撤销"
+    },
+    {
+      "keyword": "deltree",
+      "consequence": "Windows 删除整个目录树，操作无法撤销"
+    },
+    {
+      "keyword": "dd",
+      "consequence": "写入底层设备，可能导致系统崩溃或数据丧失"
+    },
+    {
+      "keyword": "mkfs",
+      "consequence": "格式化 Linux 文件系统，将清除所有数据"
+    },
+    {
+      "keyword": "format",
+      "consequence": "Windows 格式化磁盘/分区，将清除所有数据"
+    },
+    {
+      "keyword": "fdisk",
+      "consequence": "修改 Linux 磁盘分区表，可能导致系统无法启动"
+    },
+    {
+      "keyword": "parted",
+      "consequence": "修改 Linux 磁盘分区，可能导致数据丧失"
+    },
+    {
+      "keyword": "diskpart",
+      "consequence": "Windows 磁盘管理工具，可能导致数据丧失或系统崩溃"
+    },
+    {
+      "keyword": "cipher /w",
+      "consequence": "Windows 覆盖可用空间，可能导致性能问题"
+    },
+    {
+      "keyword": "cipher /wipe",
+      "consequence": "Windows 永久覆盖自由空间，操作耗时且不可逆"
+    },
+    {
+      "keyword": ":!q!",
+      "consequence": "强制退出编辑器并放弃保存"
+    },
+    {
+      "keyword": "shred",
+      "consequence": "Linux 安全删除文件，操作无法恢复"
+    },
+    {
+      "keyword": "truncate",
+      "consequence": "清空文件内容，数据无法恢复"
+    },
+    {
+      "keyword": ">",
+      "consequence": "覆盖写入文件，原文件内容将丧失"
+    },
+    {
+      "keyword": "sudo",
+      "consequence": "以 Linux 管理员权限执行，可能导致系统级别的危险操作"
+    },
+    {
+      "keyword": "chmod 777",
+      "consequence": "赋予所有用户完整权限，可能存在安全风险"
+    },
+    {
+      "keyword": "chmod -R",
+      "consequence": "递归修改权限，可能导致系统文件权限混乱"
+    },
+    {
+      "keyword": "kill -9",
+      "consequence": "强制杀死进程，可能导致数据丧失或系统崩溃"
+    },
+    {
+      "keyword": "killall",
+      "consequence": "杀死所有同名进程，可能导致系统崩溃"
+    },
+    {
+      "keyword": "pkill",
+      "consequence": "根据条件杀死进程，可能导致系统崩溃"
+    },
+    {
+      "keyword": "chkdsk",
+      "consequence": "Windows 磁盘检查，可能导致 NTFS 文件系统修复时数据变更"
+    },
+    {
+      "keyword": "fsck",
+      "consequence": "Linux 文件系统检查修复，可能导致数据变更或丧失"
+    },
+    {
+      "keyword": "mv /",
+      "consequence": "移动根目录或系统文件，可能导致系统崩溃"
+    },
+    {
+      "keyword": "cp -r /",
+      "consequence": "递归复制大型目录，可能占满磁盘导致系统崩溃"
+    },
+    {
+      "keyword": "fork()",
+      "consequence": "进程分叉炸弹，可能导致系统资源耗尽和崩溃"
+    },
+    {
+      "keyword": ":(){ :|:& };:",
+      "consequence": "Linux 分叉炸弹，可能导致系统资源耗尽和崩溃"
+    },
+    {
+      "keyword": "poweroff",
+      "consequence": "关闭系统，正在运行的程序可能丧失未保存的数据"
+    },
+    {
+      "keyword": "shutdown",
+      "consequence": "关闭或重启系统，可能中断重要进程"
+    },
+    {
+      "keyword": "reboot",
+      "consequence": "重启系统，可能中断重要进程并丧失未保存数据"
+    },
+    {
+      "keyword": "halt",
+      "consequence": "停止系统，可能中断重要进程"
+    },
+    {
+      "keyword": "init 0",
+      "consequence": "关闭 Linux 系统，可能导致数据丧失"
+    },
+    {
+      "keyword": "runlevel 0",
+      "consequence": "设置 Linux 运行级别为关闭，可能导致系统崩溃"
+    },
+    {
+      "keyword": "> /dev/sda",
+      "consequence": "直接写入磁盘设备，将破坏分区表和所有数据"
+    },
+    {
+      "keyword": "> /dev/null",
+      "consequence": "如果目标不当，可能清空重要文件"
+    },
+    {
+      "keyword": "dban",
+      "consequence": "磁盘彻底擦除工具，数据无法恢复"
+    },
+    {
+      "keyword": ":1,$d",
+      "consequence": "vi/vim 删除所有行，可能丧失整个文件内容"
+    },
+    {
+      "keyword": ":wq!",
+      "consequence": "强制保存并退出，可能覆盖已有文件"
+    },
+    {
+      "keyword": "clr",
+      "consequence": "清除 PowerShell 屏幕内容"
+    },
+    {
+      "keyword": "net stop",
+      "consequence": "Windows 停止系统服务，可能导致系统功能丧失"
+    },
+    {
+      "keyword": "sc delete",
+      "consequence": "Windows 删除服务，可能导致系统功能丧失"
+    },
+    {
+      "keyword": "reg delete",
+      "consequence": "Windows 删除注册表键，可能导致系统崩溃"
+    },
+    {
+      "keyword": "bcdedit /delete",
+      "consequence": "Windows 删除启动配置，可能导致系统无法启动"
+    },
+    {
+      "keyword": "bootsect /nt60",
+      "consequence": "Windows 修改启动扇区，可能导致系统无法启动"
+    }
+  ]
+}

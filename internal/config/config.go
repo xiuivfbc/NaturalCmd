@@ -35,6 +35,10 @@ type Config struct {
 	ModelSecondaryProvider string // 副模型提供商 (openai, aliyun)
 	ModelSecondaryKey      string // 副模型 API Key
 	ModelSecondaryEndpoint string // 副模型 API Endpoint
+
+	// 安全约束配置
+	NegativeConstraintsEnabled bool   // 是否启用负向约束（默认启用）
+	BlacklistPath              string // 黑名单文件路径
 }
 
 // Load 加载配置
@@ -83,7 +87,7 @@ func Load() (*Config, error) {
 		SilentMode:        getEnv("SILENT_MODE", "false") == "true",
 		Provider:          modelPrimaryProvider,
 		SkillsEnabled:     getEnvAsBool("SKILLS_ENABLED", true),
-		SkillsFile:        getEnv("SKILLS_FILE", "skills.json"),
+		SkillsFile:        getEnv("SKILLS_FILE", "locales/skills.json"),
 		HistoryFile:       getEnv("HISTORY_FILE", ""),
 		HistoryMax:        getEnvAsInt("HISTORY_MAX_CAPACITY", 50),
 		RAGEnabled:        getEnvAsBool("RAG_ENABLED", true),
@@ -102,6 +106,9 @@ func Load() (*Config, error) {
 		ModelSecondaryProvider: modelSecondaryProvider,
 		ModelSecondaryKey:      modelSecondaryKey,
 		ModelSecondaryEndpoint: modelSecondaryEndpoint,
+
+		NegativeConstraintsEnabled: getEnvAsBool("ENABLE_NEGATIVE_CONSTRAINTS", true),
+		BlacklistPath:              getEnv("BLACKLIST_PATH", "locales/safety_blacklist.json"),
 	}, nil
 }
 

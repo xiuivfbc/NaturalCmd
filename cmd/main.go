@@ -24,6 +24,7 @@ import (
 	"github/xiuivfbc/NaturalCmd/internal/executor"
 	"github/xiuivfbc/NaturalCmd/internal/history"
 	"github/xiuivfbc/NaturalCmd/internal/rag"
+	"github/xiuivfbc/NaturalCmd/internal/safety"
 	"github/xiuivfbc/NaturalCmd/internal/skills"
 	"github/xiuivfbc/NaturalCmd/internal/ui"
 	"github/xiuivfbc/NaturalCmd/internal/utils"
@@ -97,6 +98,13 @@ func main() {
 			},
 		}))
 		os.Exit(1)
+	}
+
+	// 初始化安全检查黑名单
+	if cfg.NegativeConstraintsEnabled {
+		if err := safety.InitBlacklist(cfg.BlacklistPath); err != nil {
+			fmt.Printf("Warning: failed to load safety blacklist: %v\n", err)
+		}
 	}
 
 	// 设置 signal 处理程序以捕获 Ctrl+C
@@ -217,6 +225,57 @@ func main() {
 		// 在直连模式中执行所有输入
 		if shellDirectMode {
 			if trimmedPrompt != "" {
+				// 安全检查
+				if cfg.NegativeConstraintsEnabled {
+					dangers := safety.CheckCommand(trimmedPrompt)
+					if len(dangers) > 0 {
+						fmt.Println()
+						fmt.Println("⚠️  " + localizer.MustLocalize(&i18n.LocalizeConfig{
+							MessageID: "dangerousOperationDetected",
+						}))
+						fmt.Println(strings.Repeat("━", 50))
+						for _, danger := range dangers {
+							fmt.Printf("🔴 [%s]\n", danger.Keyword)
+							fmt.Printf("   💡 %s\n\n", danger.Consequence)
+						}
+						fmt.Println(strings.Repeat("━", 50))
+
+						// 二次确认
+						confirmDanger := &survey.Confirm{
+							Message: localizer.MustLocalize(&i18n.LocalizeConfig{
+								MessageID: "confirmDangerousOperation",
+							}),
+							Default: false,
+						}
+						var shouldProceed bool
+						err := survey.AskOne(confirmDanger, &shouldProceed)
+						if err != nil {
+							if ui.IsInterrupt(err) {
+								fmt.Println()
+								fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
+									MessageID: "goodbyeMessage",
+								}))
+								os.Exit(0)
+							}
+							fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
+								MessageID: "errorReadingInput",
+								TemplateData: map[string]interface{}{
+									"Error": err,
+								},
+							}))
+							prompt = ""
+							continue
+						}
+						if !shouldProceed {
+							fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
+								MessageID: "operationCancelled",
+							}))
+							prompt = ""
+							continue
+						}
+					}
+				}
+
 				clearScreenIfSupported()
 				fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
 					MessageID: "executingCommand",
@@ -263,6 +322,57 @@ func main() {
 		if strings.HasPrefix(trimmedPrompt, "!") {
 			command := strings.TrimSpace(strings.TrimPrefix(trimmedPrompt, "!"))
 			if command != "" {
+				// 安全检查
+				if cfg.NegativeConstraintsEnabled {
+					dangers := safety.CheckCommand(command)
+					if len(dangers) > 0 {
+						fmt.Println()
+						fmt.Println("⚠️  " + localizer.MustLocalize(&i18n.LocalizeConfig{
+							MessageID: "dangerousOperationDetected",
+						}))
+						fmt.Println(strings.Repeat("━", 50))
+						for _, danger := range dangers {
+							fmt.Printf("🔴 [%s]\n", danger.Keyword)
+							fmt.Printf("   💡 %s\n\n", danger.Consequence)
+						}
+						fmt.Println(strings.Repeat("━", 50))
+
+						// 二次确认
+						confirmDanger := &survey.Confirm{
+							Message: localizer.MustLocalize(&i18n.LocalizeConfig{
+								MessageID: "confirmDangerousOperation",
+							}),
+							Default: false,
+						}
+						var shouldProceed bool
+						err := survey.AskOne(confirmDanger, &shouldProceed)
+						if err != nil {
+							if ui.IsInterrupt(err) {
+								fmt.Println()
+								fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
+									MessageID: "goodbyeMessage",
+								}))
+								os.Exit(0)
+							}
+							fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
+								MessageID: "errorReadingInput",
+								TemplateData: map[string]interface{}{
+									"Error": err,
+								},
+							}))
+							prompt = ""
+							continue
+						}
+						if !shouldProceed {
+							fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
+								MessageID: "operationCancelled",
+							}))
+							prompt = ""
+							continue
+						}
+					}
+				}
+
 				clearScreenIfSupported()
 				fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
 					MessageID: "executingCommand",
@@ -345,6 +455,55 @@ func main() {
 			}
 
 			if selectedOption == "confirm" {
+				// 检查安全约束（用户选择执行后）
+				if cfg.NegativeConstraintsEnabled {
+					dangers := safety.CheckCommand(script)
+					if len(dangers) > 0 {
+						fmt.Println()
+						fmt.Println("⚠️  " + localizer.MustLocalize(&i18n.LocalizeConfig{
+							MessageID: "dangerousOperationDetected",
+						}))
+						fmt.Println(strings.Repeat("━", 50))
+						for _, danger := range dangers {
+							fmt.Printf("🔴 [%s]\n", danger.Keyword)
+							fmt.Printf("   💡 %s\n\n", danger.Consequence)
+						}
+						fmt.Println(strings.Repeat("━", 50))
+
+						// 二次确认
+						confirmDanger := &survey.Confirm{
+							Message: localizer.MustLocalize(&i18n.LocalizeConfig{
+								MessageID: "confirmDangerousOperation",
+							}),
+							Default: false,
+						}
+						var shouldProceed bool
+						err := survey.AskOne(confirmDanger, &shouldProceed)
+						if err != nil {
+							if ui.IsInterrupt(err) {
+								fmt.Println()
+								fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
+									MessageID: "goodbyeMessage",
+								}))
+								os.Exit(0)
+							}
+							fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
+								MessageID: "errorReadingInput",
+								TemplateData: map[string]interface{}{
+									"Error": err,
+								},
+							}))
+							continue
+						}
+						if !shouldProceed {
+							fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
+								MessageID: "operationCancelled",
+							}))
+							continue
+						}
+					}
+				}
+
 				// 执行命令
 				result, err := executeCommand(script, localizer)
 				if err != nil {

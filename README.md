@@ -113,7 +113,7 @@ RAG_ENABLED=true
 SKILLS_ENABLED=true
 
 # 自定义 Skill 配置文件路径
-SKILLS_FILE=skills.json
+SKILLS_FILE=locales/skills.json
 
 # RAG 检索条数
 RAG_TOP_K=3
@@ -211,7 +211,7 @@ set API_KEY=your-api-key
 | `LANGUAGE` | 解释的语言 | `zh` |
 | `SILENT_MODE` | 启用静默模式 | `false` |
 | `SKILLS_ENABLED` | 是否启用自定义 Skill | `true` |
-| `SKILLS_FILE` | 自定义 Skill 配置文件路径 | `skills.json` |
+| `SKILLS_FILE` | 自定义 Skill 配置文件路径 | `locales/skills.json` |
 | `RAG_ENABLED` | 是否启用基于历史记录的 RAG 增强 | `true` |
 | `RAG_TOP_K` | RAG 检索返回的历史条数 | `3` |
 | `RAG_MIN_LOCAL_HIT_SCORE` | 本地检索最低命中分（低于该值才视为未命中） | `4` |
@@ -319,7 +319,7 @@ Running: dir
 
 ## 智能 Skill
 
-可以在项目根目录创建 `skills.json`，把常用的复杂命令流程配置成 skill。运行时 AI 会先阅读技能目录，再根据你的提示词自主选择最相关 skill，最后综合生成命令。
+可以在 `locales/skills.json` 中维护常用的复杂命令流程 skill。运行时 AI 会先阅读技能目录，再根据你的提示词自主选择最相关 skill，最后综合生成命令。
 
 示例：
 
