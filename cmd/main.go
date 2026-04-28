@@ -6,9 +6,13 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
+
+	xterm "golang.org/x/term"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/joho/godotenv"
@@ -67,6 +71,18 @@ func main() {
 		}))
 		os.Exit(1)
 	}
+
+	// 设置 signal 处理程序以捕获 Ctrl+C
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		fmt.Println()
+		fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: "goodbyeMessage",
+		}))
+		os.Exit(0)
+	}()
 
 	var skillRegistry *skills.Registry
 	if cfg.SkillsEnabled {
@@ -561,8 +577,8 @@ func executeCommand(script string, localizer *i18n.Localizer) (*executor.Executi
 }
 
 func clearScreenIfSupported() {
-	term := strings.TrimSpace(os.Getenv("TERM"))
-	if term == "" || strings.EqualFold(term, "dumb") {
+	// Only attempt to clear when stdout is a terminal.
+	if !xterm.IsTerminal(int(os.Stdout.Fd())) {
 		return
 	}
 

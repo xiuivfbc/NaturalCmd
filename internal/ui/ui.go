@@ -2,6 +2,9 @@ package ui
 
 import (
 	"errors"
+	"fmt"
+	"os"
+	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
@@ -44,14 +47,29 @@ func IsInterrupt(err error) bool {
 }
 
 func askInput(message string) (string, error) {
-	var value string
-	prompt := &survey.Input{
-		Message: message,
-	}
+	question := strings.TrimSpace(message)
+	question = strings.TrimSuffix(question, ">")
+	question = strings.TrimSpace(question)
 
-	if err := survey.AskOne(prompt, &value); err != nil {
+	fmt.Printf("? %s\n", question)
+	fmt.Print("> ")
+
+	runeReader := terminal.NewRuneReader(terminal.Stdio{
+		In:  os.Stdin,
+		Out: os.Stdout,
+		Err: os.Stderr,
+	})
+	if err := runeReader.SetTermMode(); err != nil {
+		return "", err
+	}
+	defer func() {
+		_ = runeReader.RestoreTermMode()
+	}()
+
+	line, err := runeReader.ReadLine(0)
+	if err != nil {
 		return "", err
 	}
 
-	return value, nil
+	return strings.TrimRight(string(line), "\r\n"), nil
 }
