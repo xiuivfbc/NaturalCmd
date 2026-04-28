@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -19,6 +20,8 @@ import (
 
 // 全局 i18n bundle
 var bundle *i18n.Bundle
+
+const debugPromptLogFile = "long_mode_prompts.log"
 
 // 初始化 i18n bundle
 func init() {
@@ -36,8 +39,24 @@ func init() {
 	}
 }
 
+func writeDebugPrompt(kind string, prompt string, enabled bool) {
+	if !enabled {
+		return
+	}
+
+	entry := fmt.Sprintf("[%s] %s\n%s\n\n", time.Now().Format(time.RFC3339), kind, prompt)
+	file, err := os.OpenFile(debugPromptLogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		fmt.Printf("Warning: failed to write debug prompt log: %v\n", err)
+		return
+	}
+	defer file.Close()
+
+	_, _ = file.WriteString(entry)
+}
+
 // GenerateScript 生成shell脚本
-func GenerateScript(prompt string, cfg *config.Config) (string, error) {
+func GenerateScript(prompt string, cfg *config.Config, debugLongMode bool) (string, error) {
 	// 模拟模式：直接返回预设命令
 	if cfg.APIKey == "mock" {
 		fmt.Println("```ls -la```")
@@ -45,6 +64,7 @@ func GenerateScript(prompt string, cfg *config.Config) (string, error) {
 	}
 
 	fullPrompt := buildFullPrompt(prompt, cfg)
+	writeDebugPrompt("GenerateScript", fullPrompt, debugLongMode)
 
 	messages := []Message{
 		{Role: "user", Content: fullPrompt},
@@ -83,7 +103,7 @@ func GenerateScript(prompt string, cfg *config.Config) (string, error) {
 }
 
 // GenerateExplanation 生成脚本解释
-func GenerateExplanation(script string, cfg *config.Config) (string, error) {
+func GenerateExplanation(script string, cfg *config.Config, debugLongMode bool) (string, error) {
 	// 模拟模式
 	if cfg.APIKey == "mock" {
 		// 创建本地化器
@@ -107,6 +127,7 @@ func GenerateExplanation(script string, cfg *config.Config) (string, error) {
 			"Script": script,
 		},
 	})
+	writeDebugPrompt("GenerateExplanation", prompt, debugLongMode)
 
 	messages := []Message{
 		{Role: "user", Content: prompt},
@@ -139,13 +160,14 @@ func GenerateExplanation(script string, cfg *config.Config) (string, error) {
 }
 
 // GenerateQueryExpansion 生成用于检索增强的语义扩展词（逗号分隔）。
-func GenerateQueryExpansion(query string, cfg *config.Config) (string, error) {
+func GenerateQueryExpansion(query string, cfg *config.Config, debugLongMode bool) (string, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return "", nil
 	}
 
 	prompt := fmt.Sprintf("Expand this user intent into concise retrieval keywords for command-line tasks. Return one single line as comma-separated keywords only, no explanation, no markdown: %s", query)
+	writeDebugPrompt("GenerateQueryExpansion", prompt, debugLongMode)
 	messages := []Message{{Role: "user", Content: prompt}}
 
 	var result string
@@ -184,7 +206,7 @@ type SkillSelection struct {
 }
 
 // GenerateSkillSelection 让模型根据用户输入和技能目录自主选择可用技能。
-func GenerateSkillSelection(prompt string, skillCatalog string, cfg *config.Config) (SkillSelection, error) {
+func GenerateSkillSelection(prompt string, skillCatalog string, cfg *config.Config, debugLongMode bool) (SkillSelection, error) {
 	prompt = strings.TrimSpace(prompt)
 	skillCatalog = strings.TrimSpace(skillCatalog)
 	if prompt == "" || skillCatalog == "" {
@@ -206,6 +228,7 @@ User request:
 
 Skill catalog:
 %s`, prompt, skillCatalog)
+	writeDebugPrompt("GenerateSkillSelection", selectionPrompt, debugLongMode)
 
 	messages := []Message{{Role: "user", Content: selectionPrompt}}
 

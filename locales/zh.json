@@ -167,13 +167,21 @@
     "description": "命令行直连模式的帮助提示",
     "other": "进入命令行直连模式。请输入 !<命令> 以直接执行命令（无需 LLM），输入 ! 显示此帮助，或继续输入其他内容返回 LLM 模式。"
   },
+  "shellDirectModeEnabled": {
+    "description": "进入持久命令行直连模式时的提示",
+    "other": "已进入命令行直连模式。所有输入将直接作为 Shell 命令执行；输入 ! 可退出此模式。"
+  },
+  "shellDirectModeDisabled": {
+    "description": "退出命令行直连模式时的提示",
+    "other": "已退出命令行直连模式，回到 LLM 模式。"
+  },
   "invalidChoice": {
     "description": "无效选择提示",
     "other": "无效选择。请输入'要得'或'不得行'。"
   },
   "enterPrompt": {
     "description": "主输入提示",
-    "other": "你想让我做什么？（如果查询历史请直接输入 -h \"查询词\"，直接回车可清屏）"
+    "other": "你想让我做什么？（输入 -h 获取帮助，输入 -l 进入长对话模式，输入 ! 进入命令行直连模式）"
   },
   "enterAdditionalInfo": {
     "description": "请输入补充信息",

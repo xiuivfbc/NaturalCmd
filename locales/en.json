@@ -167,13 +167,21 @@
     "description": "Help text for shell direct mode",
     "other": "Entered shell direct mode. Enter !<command> to execute commands directly without LLM, ! to show this help, or continue with other input to return to LLM mode."
   },
+  "shellDirectModeEnabled": {
+    "description": "Shown when entering persistent shell direct mode",
+    "other": "Shell direct mode enabled. All inputs will be executed as shell commands directly; enter ! to exit this mode."
+  },
+  "shellDirectModeDisabled": {
+    "description": "Shown when exiting shell direct mode",
+    "other": "Shell direct mode disabled. Back to LLM mode."
+  },
   "invalidChoice": {
     "description": "Invalid choice prompt",
     "other": "Invalid choice. Please enter 'ok' or 'not'."
   },
   "enterPrompt": {
     "description": "Prompt for main user request",
-    "other": "What would you like me to do? (For history search, enter -h \"query\"; press Enter to clear screen)"
+    "other": "What would you like me to do? (Enter -h for help; enter -l to enter long conversation mode; enter ! to enter shell direct mode)"
   },
   "enterAdditionalInfo": {
     "description": "Prompt for additional information",

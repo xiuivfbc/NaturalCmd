@@ -34,8 +34,26 @@ const maxAutoFormatRetries = 3
 const longModeToggleCommand = "-l"
 
 type conversationTurn struct {
-	Prompt string
-	Script string
+	Prompt string // 用户输入或命令
+	Script string // 生成的脚本或执行结果
+	Type   string // "llm" 或 "shell"，标识来源
+}
+
+func recordConversationTurn(history *[]conversationTurn, longMode bool, prompt, script, turnType string) {
+	if !longMode || strings.TrimSpace(prompt) == "" || strings.TrimSpace(script) == "" {
+		return
+	}
+
+	*history = append(*history, conversationTurn{
+		Prompt: prompt,
+		Script: script,
+		Type:   turnType,
+	})
+}
+
+// normalizeExclamation 将中文感叹号 ！ 替换为英文感叹号 !
+func normalizeExclamation(s string) string {
+	return strings.ReplaceAll(s, "！", "!")
 }
 
 // 全局 i18n bundle
@@ -151,6 +169,7 @@ func main() {
 	}
 
 	conversationHistory := make([]conversationTurn, 0, 8)
+	var shellDirectMode bool
 
 	for {
 		// 获取用户输入（如果没有指定prompt）
@@ -177,39 +196,114 @@ func main() {
 			continue
 		}
 
-		// 检测直连命令模式（以 ! 开头）
+		// 检测直连命令模式切换（单独的 !）
 		trimmedPrompt := strings.TrimSpace(prompt)
-		if strings.HasPrefix(trimmedPrompt, "!") {
-			command := strings.TrimSpace(strings.TrimPrefix(trimmedPrompt, "!"))
-			if command == "" {
-				// 单独的 ! 显示帮助
+		trimmedPrompt = normalizeExclamation(trimmedPrompt)
+		if trimmedPrompt == "!" {
+			shellDirectMode = !shellDirectMode
+			if shellDirectMode {
 				fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
-					MessageID: "shellDirectModeHelp",
+					MessageID: "shellDirectModeEnabled",
 				}))
-				prompt = ""
-				continue
-			}
-			// 执行直连命令
-			fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
-				MessageID: "executingCommand",
-			}))
-			fmt.Printf("Running: %s\n", command)
-			result, err := executor.ExecuteCommand(command)
-			if err != nil {
+			} else {
 				fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
-					MessageID: "errorExecutingCommand",
-					TemplateData: map[string]interface{}{
-						"Error": err,
-					},
+					MessageID: "shellDirectModeDisabled",
 				}))
 			}
-			if result != nil && (result.Stdout != "" || result.Stderr != "") {
-				if result.ExitCode != 0 {
-					fmt.Printf("Exit code: %d\n", result.ExitCode)
+			prompt = ""
+			continue
+		}
+
+		// 在直连模式中执行所有输入
+		if shellDirectMode {
+			if trimmedPrompt != "" {
+				clearScreenIfSupported()
+				fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
+					MessageID: "executingCommand",
+				}))
+				fmt.Printf("Running: %s\n", trimmedPrompt)
+				result, err := executor.ExecuteCommand(trimmedPrompt)
+
+				// 收集执行结果
+				var executionResult string
+				if err != nil {
+					fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
+						MessageID: "errorExecutingCommand",
+						TemplateData: map[string]interface{}{
+							"Error": err,
+						},
+					}))
+					executionResult = fmt.Sprintf("Error: %v", err)
+				} else {
+					executionResult = "Success"
+					if result != nil {
+						if result.Stdout != "" {
+							executionResult += "\n" + result.Stdout
+						}
+						if result.Stderr != "" {
+							executionResult += "\nStderr: " + result.Stderr
+						}
+						if result.ExitCode != 0 {
+							fmt.Printf("Exit code: %d\n", result.ExitCode)
+							executionResult += fmt.Sprintf("\nExit code: %d", result.ExitCode)
+						}
+					}
+				}
+
+				// 如果在长对话模式，记录到历史
+				if longMode {
+					recordConversationTurn(&conversationHistory, longMode, trimmedPrompt, executionResult, "shell")
 				}
 			}
 			prompt = ""
 			continue
+		}
+
+		// 直连命令（非持久模式，!cmd 形式在 LLM 模式下仍可用）
+		if strings.HasPrefix(trimmedPrompt, "!") {
+			command := strings.TrimSpace(strings.TrimPrefix(trimmedPrompt, "!"))
+			if command != "" {
+				clearScreenIfSupported()
+				fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
+					MessageID: "executingCommand",
+				}))
+				fmt.Printf("Running: %s\n", command)
+				result, err := executor.ExecuteCommand(command)
+
+				// 收集执行结果
+				var executionResult string
+				if err != nil {
+					fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
+						MessageID: "errorExecutingCommand",
+						TemplateData: map[string]interface{}{
+							"Error": err,
+						},
+					}))
+					executionResult = fmt.Sprintf("Error: %v", err)
+				} else {
+					executionResult = "Success"
+					if result != nil {
+						if result.Stdout != "" {
+							executionResult += "\n" + result.Stdout
+						}
+						if result.Stderr != "" {
+							executionResult += "\nStderr: " + result.Stderr
+						}
+						if result.ExitCode != 0 {
+							fmt.Printf("Exit code: %d\n", result.ExitCode)
+							executionResult += fmt.Sprintf("\nExit code: %d", result.ExitCode)
+						}
+					}
+				}
+
+				// 如果在长对话模式，记录到历史
+				if longMode {
+					recordConversationTurn(&conversationHistory, longMode, command, executionResult, "shell")
+				}
+
+				prompt = ""
+				continue
+			}
 		}
 
 		initialPrompt := strings.TrimSpace(prompt)
@@ -223,7 +317,7 @@ func main() {
 			}
 
 			// 生成脚本和解释
-			script, err := generateScriptAndExplanation(prompt, conversationContext, executionFeedback, cfg, localizer, historyStore, feedbackStore, skillRegistry, silent)
+			script, err := generateScriptAndExplanation(prompt, conversationContext, executionFeedback, cfg, localizer, historyStore, feedbackStore, skillRegistry, silent, longMode)
 			if err != nil {
 				var formatErr *utils.ScriptFormatError
 				if errors.As(err, &formatErr) {
@@ -283,10 +377,7 @@ func main() {
 					_ = feedbackStore.RecordSuccess(script)
 				}
 				if longMode {
-					conversationHistory = append(conversationHistory, conversationTurn{
-						Prompt: strings.TrimSpace(prompt),
-						Script: strings.TrimSpace(script),
-					})
+					recordConversationTurn(&conversationHistory, longMode, strings.TrimSpace(prompt), strings.TrimSpace(script), "llm")
 				}
 				printSuccessCelebration(localizer, initialPrompt, script)
 				prompt = ""
@@ -441,14 +532,14 @@ func parseInlineHistoryQuery(input string) (string, bool) {
 }
 
 // 生成脚本和解释
-func generateScriptAndExplanation(prompt string, conversationContext string, executionFeedback string, cfg *config.Config, localizer *i18n.Localizer, historyStore *history.Store, feedbackStore *rag.FeedbackStore, skillRegistry *skills.Registry, silent bool) (string, error) {
+func generateScriptAndExplanation(prompt string, conversationContext string, executionFeedback string, cfg *config.Config, localizer *i18n.Localizer, historyStore *history.Store, feedbackStore *rag.FeedbackStore, skillRegistry *skills.Registry, silent bool, debugLongMode bool) (string, error) {
 	promptForModel := strings.TrimSpace(prompt)
 	if strings.TrimSpace(conversationContext) != "" {
 		promptForModel += "\n\n" + conversationContext
 	}
 	if strings.TrimSpace(executionFeedback) == "" && skillRegistry != nil && skillRegistry.HasSkills() {
 		if cfg.APIKey != "" {
-			selection, err := completion.GenerateSkillSelection(prompt, skillRegistry.BuildCatalog(), cfg)
+			selection, err := completion.GenerateSkillSelection(prompt, skillRegistry.BuildCatalog(), cfg, debugLongMode)
 			if err != nil {
 				fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
 					MessageID: "smartSkillSelectFailed",
@@ -529,7 +620,7 @@ func generateScriptAndExplanation(prompt string, conversationContext string, exe
 		ragContext := match.Context
 		localHit := match.BestScore >= cfg.RAGMinLocalHit && match.Coverage >= cfg.RAGMinLocalCover
 		if !localHit && cfg.RAGSemanticExpand {
-			expandedTerms, err := completion.GenerateQueryExpansion(prompt, cfg)
+			expandedTerms, err := completion.GenerateQueryExpansion(prompt, cfg, debugLongMode)
 			if err == nil && strings.TrimSpace(expandedTerms) != "" {
 				expandedMatch := rag.BuildHistoryMatchWithFeedback(prompt+" "+expandedTerms, historyStore, feedbackStore, cfg.RAGTopK)
 				if expandedMatch.BestScore >= cfg.RAGMinLocalHit && expandedMatch.Coverage >= cfg.RAGMinLocalCover {
@@ -551,7 +642,7 @@ func generateScriptAndExplanation(prompt string, conversationContext string, exe
 	}
 
 	// 生成命令（流式输出在 completion 层处理）
-	script, err := completion.GenerateScript(promptForModel, cfg)
+	script, err := completion.GenerateScript(promptForModel, cfg, debugLongMode)
 	if err != nil {
 		fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: "errorGeneratingScript",
@@ -578,7 +669,7 @@ func generateScriptAndExplanation(prompt string, conversationContext string, exe
 		fmt.Printf("\n%s\n", localizer.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: "explanation",
 		}))
-		_, err := completion.GenerateExplanation(script, cfg)
+		_, err := completion.GenerateExplanation(script, cfg, debugLongMode)
 		if err != nil {
 			fmt.Println(localizer.MustLocalize(&i18n.LocalizeConfig{
 				MessageID: "errorGeneratingExplanation",
@@ -760,8 +851,14 @@ func buildConversationContext(history []conversationTurn) string {
 			continue
 		}
 
-		builder.WriteString(fmt.Sprintf("%d. User request: %s\n", index+1, prompt))
-		builder.WriteString(fmt.Sprintf("   Final command: %s\n", script))
+		if turn.Type == "shell" {
+			builder.WriteString(fmt.Sprintf("%d. [Shell Command] %s\n", index+1, prompt))
+			builder.WriteString(fmt.Sprintf("   Result: %s\n", script))
+		} else {
+			// 默认为 "llm" 类型
+			builder.WriteString(fmt.Sprintf("%d. User request: %s\n", index+1, prompt))
+			builder.WriteString(fmt.Sprintf("   Final command: %s\n", script))
+		}
 	}
 	builder.WriteString("Generate the next command with this context in mind.\n")
 
